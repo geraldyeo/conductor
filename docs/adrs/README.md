@@ -18,10 +18,11 @@ Each ADR follows a hybrid format combining [Michael Nygard's original](https://c
 |-----|-------|--------|
 | [ADR-0001](0001-session-lifecycle-engine.md) | Session Lifecycle Engine | Accepted |
 | [ADR-0002](0002-implementation-language.md) | Implementation Language | Accepted |
+| [ADR-0003](0003-configuration-system.md) | Configuration System | Accepted |
 
 ## Layered Approach
 
 ADRs are organized in layers. This first layer contains **foundational** decisions that gate downstream choices:
 
-- **Layer 1 (this set):** Core architecture, isolation strategy, runtime, lifecycle, reactions, persistence, and implementation language.
-- **Layer 2 (future):** CLI framework, config validation library, dashboard framework, mobile framework, test framework, real-time transport, monorepo structure. These depend on the implementation language decision (ADR-0007).
+- **Layer 1 (this set):** Core architecture, isolation strategy, runtime, lifecycle, reactions, persistence, implementation language, and configuration system.
+- **Layer 2 (future):** CLI framework, dashboard framework, mobile framework, test framework, real-time transport, monorepo structure. These depend on the implementation language decision (ADR-0002).
