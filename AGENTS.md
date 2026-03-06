@@ -47,8 +47,8 @@ status: Draft
 
 | File type | Pattern | Example |
 |-----------|---------|---------|
-| ADR | `NNNN-kebab-title.md` | `0007-implementation-language.md` |
-| Review | `NNNN-kebab-title-review-{round}-{reviewer}.md` | `0007-implementation-language-review-1-codex.md` |
+| ADR | `NNNN-kebab-title.md` | `0002-implementation-language.md` |
+| Review | `NNNN-kebab-title-review-{round}-{reviewer}.md` | `0002-implementation-language-review-1-codex.md` |
 
 **ADR format** — hybrid Nygard + MADR:
 
