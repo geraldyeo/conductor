@@ -19,6 +19,7 @@ Each ADR follows a hybrid format combining [Michael Nygard's original](https://c
 | [ADR-0001](0001-session-lifecycle-engine.md) | Session Lifecycle Engine | Accepted |
 | [ADR-0002](0002-implementation-language.md) | Implementation Language | Accepted |
 | [ADR-0003](0003-configuration-system.md) | Configuration System | Accepted |
+| [ADR-0004](0004-plugin-system-agent-runtime.md) | Plugin System, Agent Contract & Runtime | Accepted |
 
 ## Layered Approach
 
