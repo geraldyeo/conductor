@@ -1,3 +1,9 @@
+---
+version: "1.3"
+date: 2026-03-06
+status: Accepted
+---
+
 # Product Requirements Document (PRD): Agent Orchestrator
 
 ## 1. Executive Summary
@@ -99,10 +105,11 @@ A rule-based engine maps event types to actions. Three action types: `send-to-ag
 - Reactions are configurable at the global level and overridable per-project.
 - The reaction tracker maintains per-session attempt counts for retry logic.
 - **Idempotency**: every automated mutation (merge, close, restart, cleanup) must be idempotent. The orchestrator maintains an **action journal** — a per-session append-only log of executed actions with dedupe keys (action type + target + timestamp window). Before executing a destructive action, the orchestrator checks the journal and skips if the same action was already performed within the dedupe window. This prevents repeated PR churn from polling retries or reaction re-triggers.
+- **Wait-for-ready protocol**: when a non-terminal event occurs (CI failure, review comments, merge conflicts) while an agent is mid-turn (activity state = `active`), the orchestrator queues the nudge and delivers it only when the agent reaches `ready` or `idle` state. This prevents disrupting the agent's current reasoning loop. Terminal events (issue closed, budget exceeded) bypass this and trigger immediate action.
 - **Exponential backoff**: failed runs retry with `min(base * 2^attempt, maxRetryBackoffMs)`. Default max: 5 minutes. Prevents agent thrashing on persistent failures.
 - **Auto-cancellation**: when a tracked issue moves to a terminal state (closed, cancelled, done), the agent is automatically killed and the workspace is cleaned up.
 - **Rework flow**: when an issue enters a rework state, the orchestrator closes the existing PR, creates a fresh branch from the default branch, and restarts the agent from scratch — avoiding incremental patches on rejected approaches.
-- **Budget enforcement**: the orchestrator monitors per-session token usage and wall-clock time against configured limits (`maxSessionTokens`, `maxSessionWallClockMs`). If a session exceeds either limit, it is automatically killed with a `budget_exceeded` status and the human is notified. Per-issue retry attempts are capped by `maxRetriesPerIssue` (default: 5 per day) to prevent runaway cost loops.
+- **Budget enforcement**: the orchestrator monitors per-session token usage and wall-clock time against configured limits (`maxSessionTokens`, `maxSessionWallClockMs`). If a session exceeds either limit, it transitions to `killed` status with `terminationReason=budget_exceeded` in the session metadata, and the human is notified. Per-issue retry attempts are capped by `maxRetriesPerIssue` (default: 5 per day) to prevent runaway cost loops.
 
 ### FR5: Scheduling & Concurrency
 
@@ -309,7 +316,8 @@ This enables fully autonomous operation where an AI agent coordinates other AI a
 - **Race-free creation:** Session ID reservation with `O_EXCL` flag.
 - **Path traversal prevention:** Session ID validation.
 - **Token tracking:** Per-session input/output token counters, updated during agent runs. Aggregated for dashboard and cost reporting.
-- **Action journal:** Per-session append-only log of orchestrator-executed actions (merge, close, restart, label, cleanup). Each entry contains: action type, target (PR/issue ID), timestamp, dedupe key. Used by FR4 for idempotency checks.
+- **Termination reason:** When a session reaches a terminal status, a `terminationReason` field records the cause (e.g., `budget_exceeded`, `manual_kill`, `stall_timeout`, `tracker_terminal`, `agent_exit`). This distinguishes different kill causes without adding statuses.
+- **Action journal:** Per-session append-only log of orchestrator-executed actions (merge, close, restart, label, cleanup). Each entry contains: action type, target (PR/issue ID), timestamp, dedupe key, result (`success` | `failed` | `skipped`), error code (if failed), attempt number, and actor (`orchestrator` | `reaction_engine` | `human`). Used by FR4 for idempotency checks and by the reaction engine for retry/escalation decisions.
 
 ### FR16: Tracker Integration
 
@@ -344,6 +352,14 @@ Defines who can mutate shared state (tracker issues, PRs, sessions) to prevent c
 | Rebase / fresh branch | Orchestrator | Tool **withheld** | Rework flow (FR4) |
 
 **Conflict resolution rule:** If both orchestrator and agent could act on the same event, the orchestrator defers to a running agent. If no agent session is active, the orchestrator acts directly.
+
+**Runtime command policy:** Tool withholding alone is insufficient — agents with shell access can bypass tool-level controls by executing commands directly (e.g., `gh pr merge`). To close this gap, the runtime plugin must enforce a **command policy** for worker sessions:
+
+- **Blocked command patterns**: a configurable denylist of command families that worker agents must not execute (e.g., `gh pr merge`, `gh pr close`, `gh issue close`, `gh label`). The runtime intercepts or wraps shell execution to enforce this.
+- **Scoped credentials**: worker sessions receive API tokens scoped to work-level permissions only (e.g., repo read/write but not PR merge). Orchestrator-only mutations use a separate, higher-privilege token. This provides defense-in-depth even if command blocking is bypassed.
+- **Prompt reinforcement**: the base prompt (FR11) instructs agents not to perform lifecycle actions directly, as a soft additional layer.
+
+The combination of tool withholding + command policy + scoped credentials provides three layers of enforcement: protocol-level, shell-level, and credential-level.
 
 **Grey areas** (e.g., agent adding a "ready for review" comment) are handled via prompt guidance. The worst case for a grey-area violation is a redundant action, not a destructive one — all destructive actions are mechanically prevented.
 
@@ -425,13 +441,19 @@ The following table is the **single source of truth** for valid session status t
 
 ### 5.4 Status Determination Logic
 
-1. Check if runtime is alive (if not → `killed`).
-2. Check budget limits (if exceeded → `killed` with `budget_exceeded` reason).
-3. Check agent activity state via JSONL (preferred) or terminal output parsing (fallback).
-4. Auto-detect PR by branch name if not yet associated.
-5. If PR exists: check PR state (merged/closed), CI status, review decision, merge readiness.
-6. Evaluate transition table in precedence order.
-7. Default to `working` if agent is active and no other transition matches.
+The **transition table (Section 5.3) is the sole authority** for status changes. The determination algorithm gathers inputs and then evaluates the table:
+
+1. **Gather inputs** (order does not imply precedence):
+   - Runtime liveness (alive / not alive)
+   - Budget state (within limits / exceeded)
+   - Agent activity state via JSONL (preferred) or terminal output parsing (fallback)
+   - PR association (auto-detect by branch name if not yet associated)
+   - If PR exists: PR state (merged/closed), CI status, review decision, merge readiness
+   - Tracker issue state (active / terminal)
+2. **Evaluate transition table** in precedence order (lowest number wins) using gathered inputs.
+3. **Apply first matching transition.** If no transition matches and agent is active, status remains unchanged.
+
+This two-phase approach (gather then evaluate) ensures that the precedence table — not the input-gathering order — determines which transition fires.
 
 ### 5.5 Retry Behavior
 

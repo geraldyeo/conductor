@@ -28,6 +28,21 @@ docs/
 - `{round}` — review iteration (1, 2, 3…). Increments when the PRD is updated and re-reviewed.
 - `{reviewer}` — who performed the review (e.g., `gemini`, `codex`, `claude`, `human`)
 
+**PRD front matter** — every PRD must include YAML front matter for version tracking:
+
+```yaml
+---
+version: "1.2"
+date: 2026-03-06
+status: Draft
+---
+```
+
+- **version**: `major.minor` — increment minor for review-driven updates, major for structural rewrites
+- **date**: last modified date
+- **status**: `Draft` | `Review` | `Accepted`
+- Reviewers should reference the PRD version in their review header
+
 ### ADRs (`docs/adrs/`)
 
 | File type | Pattern | Example |
