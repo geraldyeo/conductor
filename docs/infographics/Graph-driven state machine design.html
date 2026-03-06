@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graph-Driven State Machine — Architecture Infographic</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Newsreader:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Syne:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #12151c;
+    --surface-2: #1a1e28;
+    --border: #252a36;
+    --border-glow: #2d3548;
+    --text: #c8cdd8;
+    --text-dim: #6b7280;
+    --text-bright: #e8ecf4;
+    --accent: #60a5fa;
+    --accent-dim: #2563eb;
+    --green: #34d399;
+    --green-dim: #065f46;
+    --amber: #fbbf24;
+    --amber-dim: #78350f;
+    --red: #f87171;
+    --red-dim: #7f1d1d;
+    --purple: #a78bfa;
+    --purple-dim: #4c1d95;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  .grain {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 40px 100px;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    text-align: center;
+    margin-bottom: 80px;
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-dim), transparent);
+  }
+
+  .header-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.2s;
+  }
+
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 800;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -1px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.4s;
+  }
+
+  .header h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .header-sub {
+    font-family: 'Newsreader', serif;
+    font-size: 18px;
+    font-style: italic;
+    color: var(--text-dim);
+    margin-top: 16px;
+    font-weight: 300;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.6s;
+  }
+
+  /* ─── SECTION ─── */
+  .section {
+    margin-bottom: 72px;
+    opacity: 0;
+    animation: fadeUp 0.7s ease forwards;
+  }
+
+  .section:nth-child(2) { animation-delay: 0.3s; }
+  .section:nth-child(3) { animation-delay: 0.4s; }
+  .section:nth-child(4) { animation-delay: 0.5s; }
+  .section:nth-child(5) { animation-delay: 0.6s; }
+  .section:nth-child(6) { animation-delay: 0.7s; }
+  .section:nth-child(7) { animation-delay: 0.8s; }
+
+  .section-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-num::before {
+    content: '';
+    width: 24px;
+    height: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 24px;
+    letter-spacing: -0.5px;
+  }
+
+  .section-body {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.8;
+    max-width: 800px;
+  }
+
+  /* ─── GRAPH VIZ ─── */
+  .graph-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    margin: 24px 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .graph-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+  }
+
+  .graph-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+  }
+
+  /* Node graph */
+  .node-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .node {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .node:hover {
+    border-color: var(--accent-dim);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(96, 165, 250, 0.1);
+  }
+
+  .node.initial {
+    border-color: var(--accent-dim);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(37, 99, 235, 0.05));
+    color: var(--accent);
+  }
+
+  .node.terminal {
+    border-color: var(--red-dim);
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.25), rgba(127, 29, 29, 0.1));
+    color: var(--red);
+  }
+
+  .node.active {
+    border-color: var(--green-dim);
+    background: linear-gradient(135deg, rgba(6, 95, 70, 0.25), rgba(6, 95, 70, 0.1));
+    color: var(--green);
+  }
+
+  .node-tag {
+    position: absolute;
+    top: -8px;
+    right: -4px;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .node-tag.init { background: var(--accent-dim); color: var(--accent); }
+  .node-tag.term { background: var(--red-dim); color: var(--red); }
+
+  .edge-legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .edge-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .legend-dot.blue { background: var(--accent); }
+  .legend-dot.green { background: var(--green); }
+  .legend-dot.red { background: var(--red); }
+
+  /* ─── POLL CONTEXT ─── */
+  .ctx-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .ctx-field {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    transition: border-color 0.3s;
+  }
+
+  .ctx-field:hover {
+    border-color: var(--border-glow);
+  }
+
+  .ctx-field-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .ctx-field-type {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .ctx-field-desc {
+    font-family: 'Newsreader', serif;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  /* ─── EDGE TABLE ─── */
+  .edge-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+    margin: 20px 0;
+  }
+
+  .edge-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .edge-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(37, 42, 54, 0.5);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  .edge-table tr:hover td {
+    background: rgba(96, 165, 250, 0.03);
+  }
+
+  .edge-table .from { color: var(--cyan); }
+  .edge-table .to { color: var(--green); }
+  .edge-table .prec { color: var(--amber); font-weight: 600; }
+  .edge-table .guard { color: var(--text-dim); font-size: 11px; }
+  .edge-table .global-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--purple-dim);
+    color: var(--purple);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── PIPELINE ─── */
+  .pipeline {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin: 24px 0;
+  }
+
+  .pipeline-stage {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    position: relative;
+    transition: border-color 0.3s;
+  }
+
+  .pipeline-stage:hover {
+    border-color: var(--border-glow);
+  }
+
+  .pipeline-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 20px;
+    padding: 0 8px;
+  }
+
+  .pipeline-stage-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .pipeline-stage-sublabel {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .pipeline-stage-desc {
+    font-family: 'Newsreader', serif;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+    font-style: italic;
+  }
+
+  .stage-gather .pipeline-stage-label { color: var(--cyan); }
+  .stage-evaluate .pipeline-stage-label { color: var(--amber); }
+  .stage-transition .pipeline-stage-label { color: var(--green); }
+
+  /* ─── VALIDATION ─── */
+  .check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+  }
+
+  .check-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    transition: border-color 0.3s;
+  }
+
+  .check-item:hover {
+    border-color: var(--green-dim);
+  }
+
+  .check-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .check-text {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .check-text strong {
+    color: var(--text-bright);
+    font-weight: 600;
+  }
+
+  /* ─── ENTRY ACTIONS ─── */
+  .action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+  }
+
+  .action-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    transition: all 0.3s;
+  }
+
+  .action-card:hover {
+    border-color: var(--border-glow);
+    transform: translateY(-1px);
+  }
+
+  .action-status {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .action-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .action-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* ─── INSIGHT BOX ─── */
+  .insight {
+    border-left: 2px solid var(--amber);
+    padding: 16px 20px;
+    margin: 24px 0;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.04), transparent);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .insight-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+
+  .insight-text {
+    font-family: 'Newsreader', serif;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  /* ─── GATHER ORDER ─── */
+  .gather-steps {
+    display: flex;
+    gap: 0;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+
+  .gather-step {
+    flex: 1;
+    min-width: 140px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    position: relative;
+    text-align: center;
+  }
+
+  .gather-step:first-child { border-radius: 8px 0 0 8px; }
+  .gather-step:last-child { border-radius: 0 8px 8px 0; }
+  .gather-step:not(:last-child) { border-right: none; }
+
+  .gather-step-num {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .gather-step-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+
+  .gather-step-cost {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .gather-step-arrow {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-dim);
+    font-size: 14px;
+    z-index: 2;
+  }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    text-align: center;
+    margin-top: 80px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer-text {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 700px) {
+    .container { padding: 40px 20px 60px; }
+    .pipeline { grid-template-columns: 1fr; gap: 12px; }
+    .pipeline-arrow { transform: rotate(90deg); padding: 4px 0; }
+    .gather-steps { flex-direction: column; }
+    .gather-step { border-radius: 0 !important; border-right: 1px solid var(--border) !important; border-bottom: none; }
+    .gather-step:first-child { border-radius: 8px 8px 0 0 !important; }
+    .gather-step:last-child { border-radius: 0 0 8px 8px !important; border-bottom: 1px solid var(--border); }
+    .gather-step-arrow { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grain"></div>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-label">System Architecture</div>
+    <h1>Graph-Driven<br><span>State Machine</span></h1>
+    <div class="header-sub">Directed edges, guarded transitions, deterministic convergence</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 1: Graph Structure -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-num">Section 01</div>
+    <div class="section-title">Graph Structure</div>
+    <div class="section-body">
+      An adjacency list where each node is a session status and each edge is a guarded transition. Edges carry a precedence number — lower wins. Wildcard (global) edges are appended to every non-terminal node at build time.
+    </div>
+
+    <div class="graph-container">
+      <div class="graph-label">Session Status Graph — Nodes</div>
+      <div class="node-row">
+        <div class="node initial">spawning<span class="node-tag init">init</span></div>
+      </div>
+      <div class="node-row">
+        <div class="node active">working</div>
+        <div class="node active">pr_open</div>
+        <div class="node active">ci_running</div>
+        <div class="node active">reviewing</div>
+      </div>
+      <div class="node-row">
+        <div class="node" style="border-color: var(--amber-dim); color: var(--amber);">needs_input</div>
+        <div class="node" style="border-color: var(--amber-dim); color: var(--amber);">stuck</div>
+        <div class="node" style="border-color: var(--amber-dim); color: var(--amber);">ci_failed</div>
+        <div class="node" style="border-color: var(--amber-dim); color: var(--amber);">changes_requested</div>
+      </div>
+      <div class="node-row">
+        <div class="node terminal">killed<span class="node-tag term">term</span></div>
+        <div class="node terminal">errored<span class="node-tag term">term</span></div>
+        <div class="node terminal">done<span class="node-tag term">term</span></div>
+        <div class="node terminal">cleanup<span class="node-tag term">term</span></div>
+        <div class="node terminal">merged<span class="node-tag term">term</span></div>
+      </div>
+      <div class="edge-legend">
+        <div class="edge-legend-item"><div class="legend-dot blue"></div>Initial state</div>
+        <div class="edge-legend-item"><div class="legend-dot green"></div>Active states</div>
+        <div class="edge-legend-item"><div class="legend-dot" style="background: var(--amber);"></div>Needs attention</div>
+        <div class="edge-legend-item"><div class="legend-dot red"></div>Terminal states</div>
+      </div>
+    </div>
+
+    <div class="section-body" style="margin-top: 16px;">
+      <strong style="color: var(--text-bright)">Evaluation:</strong>&nbsp; Look up node → walk edges in precedence order → first guard returning <code style="color:var(--green)">true</code> wins → O(out-degree) per session per poll.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 2: Poll Context -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-num">Section 02</div>
+    <div class="section-title">Poll Context</div>
+    <div class="section-body">
+      A flat, pre-resolved snapshot of everything about a session. Passed to every guard function — the single source of truth for transition decisions.
+    </div>
+
+    <div class="ctx-grid">
+      <div class="ctx-field">
+        <div class="ctx-field-name">runtimeAlive</div>
+        <div class="ctx-field-type">boolean</div>
+        <div class="ctx-field-desc">Is the runtime process still running?</div>
+      </div>
+      <div class="ctx-field">
+        <div class="ctx-field-name">activityState</div>
+        <div class="ctx-field-type">enum</div>
+        <div class="ctx-field-desc">active · ready · idle · waiting_input · blocked · exited</div>
+      </div>
+      <div class="ctx-field">
+        <div class="ctx-field-name">pr</div>
+        <div class="ctx-field-type">object | null</div>
+        <div class="ctx-field-desc">PR detected, state, CI status, review decision, mergeability</div>
+      </div>
+      <div class="ctx-field">
+        <div class="ctx-field-name">trackerState</div>
+        <div class="ctx-field-type">"active" | "terminal"</div>
+        <div class="ctx-field-desc">External tracker lifecycle</div>
+      </div>
+      <div class="ctx-field">
+        <div class="ctx-field-name">budgetExceeded</div>
+        <div class="ctx-field-type">boolean</div>
+        <div class="ctx-field-desc">Has the session exceeded its budget?</div>
+      </div>
+      <div class="ctx-field">
+        <div class="ctx-field-name">manualKill</div>
+        <div class="ctx-field-type">boolean</div>
+        <div class="ctx-field-desc">User-initiated kill signal</div>
+      </div>
+    </div>
+
+    <div class="graph-container">
+      <div class="graph-label">Gather Order — Cheapest First, Short-Circuits on Failure</div>
+      <div class="gather-steps">
+        <div class="gather-step">
+          <div class="gather-step-num">01</div>
+          <div class="gather-step-name">Runtime</div>
+          <div class="gather-step-cost">~free</div>
+          <div class="gather-step-arrow">→</div>
+        </div>
+        <div class="gather-step">
+          <div class="gather-step-num">02</div>
+          <div class="gather-step-name">Activity</div>
+          <div class="gather-step-cost">local</div>
+          <div class="gather-step-arrow">→</div>
+        </div>
+        <div class="gather-step">
+          <div class="gather-step-num">03</div>
+          <div class="gather-step-name">PR / CI / Review</div>
+          <div class="gather-step-cost">API calls</div>
+          <div class="gather-step-arrow">→</div>
+        </div>
+        <div class="gather-step">
+          <div class="gather-step-num">04</div>
+          <div class="gather-step-name">Tracker</div>
+          <div class="gather-step-cost">API call</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">★ Key Insight</div>
+      <div class="insight-text">
+        Separating gather from evaluate makes guards trivially testable — construct a PollContext literal and assert true/false. No mocks, no API stubs. The gather phase is the only place that touches I/O.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 3: Graph Construction -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-num">Section 03</div>
+    <div class="section-title">Graph Construction & Validation</div>
+    <div class="section-body">
+      The graph is built from a declarative, flat list of edge declarations — one line per transition in the PRD. Compiled into the adjacency list at startup.
+    </div>
+
+    <div class="graph-container">
+      <div class="graph-label">Edge Declarations — Excerpt</div>
+      <table class="edge-table">
+        <thead>
+          <tr>
+            <th>From</th>
+            <th>To</th>
+            <th>Prec</th>
+            <th>Guard</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="from">spawning</td>
+            <td class="to">working</td>
+            <td class="prec">1</td>
+            <td class="guard">runtimeAlive && active</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="from">spawning</td>
+            <td class="to">errored</td>
+            <td class="prec">2</td>
+            <td class="guard">!runtimeAlive</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="from">working</td>
+            <td class="to">pr_open</td>
+            <td class="prec">3</td>
+            <td class="guard">pr?.detected</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="from">working</td>
+            <td class="to">needs_input</td>
+            <td class="prec">4</td>
+            <td class="guard">waiting_input</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="from">working</td>
+            <td class="to">stuck</td>
+            <td class="prec">5</td>
+            <td class="guard">idle</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="from">any ✱</td>
+            <td class="to">killed</td>
+            <td class="prec">28</td>
+            <td class="guard">manualKill</td>
+            <td><span class="global-tag">GLOBAL</span></td>
+          </tr>
+          <tr>
+            <td class="from">any ✱</td>
+            <td class="to">cleanup</td>
+            <td class="prec">29</td>
+            <td class="guard">tracker terminal</td>
+            <td><span class="global-tag">GLOBAL</span></td>
+          </tr>
+          <tr>
+            <td class="from">any ✱</td>
+            <td class="to">killed</td>
+            <td class="prec">30</td>
+            <td class="guard">budgetExceeded</td>
+            <td><span class="global-tag">GLOBAL</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="graph-container">
+      <div class="graph-label">Load-Time Validation Checks</div>
+      <div class="check-grid">
+        <div class="check-item">
+          <div class="check-icon">✓</div>
+          <div class="check-text"><strong>No orphan nodes</strong> — every status appears as a from or to</div>
+        </div>
+        <div class="check-item">
+          <div class="check-icon">✓</div>
+          <div class="check-text"><strong>Terminal = no outgoing</strong> — can't escape merged, killed, etc.</div>
+        </div>
+        <div class="check-item">
+          <div class="check-icon">✓</div>
+          <div class="check-text"><strong>Non-terminal ≥ 1 edge</strong> — no dead-end states trapping sessions</div>
+        </div>
+        <div class="check-item">
+          <div class="check-icon">✓</div>
+          <div class="check-text"><strong>No duplicate precedence</strong> — unambiguous evaluation order</div>
+        </div>
+        <div class="check-item">
+          <div class="check-icon">✓</div>
+          <div class="check-text"><strong>Reachable from spawning</strong> — every status reachable from init</div>
+        </div>
+        <div class="check-item">
+          <div class="check-icon">✓</div>
+          <div class="check-text"><strong>Path to terminal</strong> — every non-terminal reaches an exit</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">★ Key Insight</div>
+      <div class="insight-text">
+        The validation layer turns the PRD's transition table from a spec you hope the code matches into an invariant the system enforces. Invalid graphs are rejected at startup.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 4: Poll Loop -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-num">Section 04</div>
+    <div class="section-title">Poll Loop Architecture</div>
+    <div class="section-body">
+      The orchestrator's heartbeat. Runs on a fixed 30s interval with re-entrancy protection. Three phases per tick — cleanly separated read/compute/write.
+    </div>
+
+    <div class="pipeline">
+      <div class="pipeline-stage stage-gather">
+        <div class="pipeline-stage-label">Gather</div>
+        <div class="pipeline-stage-sublabel">Read · I/O heavy</div>
+        <div class="pipeline-stage-desc">Collect world state into PollContext. Parallelized across sessions (max 5). Sequential within each session.</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage stage-evaluate">
+        <div class="pipeline-stage-label">Evaluate</div>
+        <div class="pipeline-stage-sublabel">Compute · Pure</div>
+        <div class="pipeline-stage-desc">Walk graph edges in precedence order. First matching guard wins. Zero I/O. O(out-degree).</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage stage-transition">
+        <div class="pipeline-stage-label">Transition</div>
+        <div class="pipeline-stage-sublabel">Write · Side effects</div>
+        <div class="pipeline-stage-desc">Atomic status update, journal append, fire entry actions. Sequential to avoid races.</div>
+      </div>
+    </div>
+
+    <div class="section-body" style="margin-top: 16px;">
+      <strong style="color: var(--text-bright)">Re-entrancy guard:</strong>&nbsp; If a tick is still in-flight, the next scheduled tick is a no-op. No overlapping cycles.
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">★ Key Insight</div>
+      <div class="insight-text">
+        The gather→evaluate→transition pipeline maps to read/compute/write. The pure evaluate phase can be property-tested exhaustively — generate random PollContexts and verify the graph always produces valid transitions.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 5: Side Effects & Recovery -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-num">Section 05</div>
+    <div class="section-title">Side Effects & Crash Recovery</div>
+    <div class="section-body">
+      Entry actions are keyed by target status — not by edge. A session entering <code style="color:var(--red)">killed</code> always destroys its runtime, regardless of which transition got it there.
+    </div>
+
+    <div class="action-grid">
+      <div class="action-card">
+        <div class="action-status" style="color: var(--amber);"><div class="dot" style="background: var(--amber);"></div>needs_input</div>
+        <div class="action-desc">Notify human (urgent)</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--amber);"><div class="dot" style="background: var(--amber);"></div>stuck</div>
+        <div class="action-desc">Start stall timer + notify</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--red);"><div class="dot" style="background: var(--red);"></div>killed</div>
+        <div class="action-desc">Destroy runtime</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--red);"><div class="dot" style="background: var(--red);"></div>cleanup</div>
+        <div class="action-desc">Destroy runtime + workspace</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--green);"><div class="dot" style="background: var(--green);"></div>merged</div>
+        <div class="action-desc">Notify with summary + archive</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--pink);"><div class="dot" style="background: var(--pink);"></div>ci_failed</div>
+        <div class="action-desc">Queue fix reaction</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--pink);"><div class="dot" style="background: var(--pink);"></div>changes_requested</div>
+        <div class="action-desc">Queue review reaction</div>
+      </div>
+      <div class="action-card">
+        <div class="action-status" style="color: var(--red);"><div class="dot" style="background: var(--red);"></div>errored</div>
+        <div class="action-desc">Notify (warning)</div>
+      </div>
+    </div>
+
+    <div class="graph-container">
+      <div class="graph-label">Crash Recovery — No Special Codepath</div>
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 12px 16px; font-size: 12px; align-items: baseline;">
+        <span style="color: var(--accent); font-weight: 600;">1.</span>
+        <span>Load all non-terminal sessions from metadata files</span>
+        <span style="color: var(--accent); font-weight: 600;">2.</span>
+        <span>Run one immediate poll tick (gather → evaluate → transition)</span>
+        <span style="color: var(--accent); font-weight: 600;">3.</span>
+        <span>Graph + live world state naturally converge to correct status</span>
+      </div>
+      <div style="margin-top: 16px; font-size: 11px; color: var(--text-dim);">
+        No event log replay. The poll loop <em>is</em> the recovery mechanism.
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">★ Key Insight</div>
+      <div class="insight-text">
+        Crash recovery is "just run the poll loop" — a direct consequence of the state machine being deterministic and gathering fresh world state each tick. No event log to replay, no separate recovery codepath. The graph evaluates current reality and converges.
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-text">GRAPH-DRIVEN STATE MACHINE · ARCHITECTURE OVERVIEW · 5 SECTIONS</div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -16,13 +16,7 @@ Each ADR follows a hybrid format combining [Michael Nygard's original](https://c
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [0001](0001-eight-slot-plugin-architecture.md) | Eight Slot Plugin Architecture | Draft |
-| [0002](0002-workspace-isolation-git-worktrees.md) | Workspace Isolation via Git Worktrees | Draft |
-| [0003](0003-terminal-multiplexing-tmux.md) | Terminal Multiplexing with tmux | Draft |
-| [0004](0004-event-driven-lifecycle-polling.md) | Event-Driven Lifecycle Polling | Draft |
-| [0005](0005-rule-based-automated-reactions.md) | Rule-Based Automated Reactions | Draft |
-| [0006](0006-local-file-based-persistence.md) | Local File-Based Persistence | Draft |
-| [0007](0007-implementation-language.md) | Implementation Language | Proposed |
+| [ADR-0001](0001-session-lifecycle-engine.md) | Session Lifecycle Engine | Accepted |
 
 ## Layered Approach
 
