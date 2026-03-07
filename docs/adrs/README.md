@@ -22,6 +22,7 @@ Each ADR follows a hybrid format combining [Michael Nygard's original](https://c
 | [ADR-0004](0004-plugin-system-agent-runtime.md) | Plugin System, Agent Contract & Runtime | Accepted |
 | [ADR-0005](0005-workspace-session-metadata.md) | Workspace & Session Metadata | Accepted |
 | [ADR-0006](0006-tracker-integration.md) | Tracker Integration | Accepted |
+| [ADR-0007](0007-cli.md) | CLI | Accepted |
 
 ## Layered Approach
 
