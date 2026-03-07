@@ -65,6 +65,15 @@ Each plugin exports a manifest (name, slot, description, version) and a factory 
 - **Validated YAML config** with walk-up-tree discovery and hot-reload
 - **Tracker-driven recovery** on restart (re-poll for active issues)
 
+## Review Workflows
+
+This project uses multi-model review via Claude Code slash commands that dispatch Gemini CLI and Codex CLI as independent reviewers.
+
+- **`/adr-review <path>`** — Review ADRs and design docs. Dispatches Gemini + Codex in parallel, classifies findings as High/Medium/Low, synthesizes into a unified report. Use for all ADR acceptance reviews.
+- **`/code-review-multi <file-or-'diff'>`** — Review source code or git diffs. Dispatches Gemini + Codex in parallel, classifies findings as Critical/Warning/Info, synthesizes with Claude's own review. Use `diff` as the argument to review uncommitted changes.
+
+Both commands are defined in `~/.claude/commands/` and require `gemini` and `codex` CLIs to be installed.
+
 ## Tech Stack
 
 Language and framework choices are TBD — see ADRs. Decided so far: tmux (runtime), `gh` CLI + GitHub GraphQL (SCM), GitHub Actions (CI), gitleaks (security).
