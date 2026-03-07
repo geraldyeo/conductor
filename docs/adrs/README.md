@@ -20,7 +20,7 @@ Each ADR follows a hybrid format combining [Michael Nygard's original](https://c
 | [ADR-0002](0002-implementation-language.md) | Implementation Language | Accepted |
 | [ADR-0003](0003-configuration-system.md) | Configuration System | Accepted |
 | [ADR-0004](0004-plugin-system-agent-runtime.md) | Plugin System, Agent Contract & Runtime | Accepted |
-
+| [ADR-0005](0005-workspace-session-metadata.md) | Workspace & Session Metadata | Accepted |
 ## Layered Approach
 
 ADRs are organized in layers. This first layer contains **foundational** decisions that gate downstream choices:
