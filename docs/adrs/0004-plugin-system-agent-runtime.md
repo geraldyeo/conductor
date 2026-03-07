@@ -62,6 +62,8 @@ pub fn create_runtime(name: &str, config: &Config) -> Result<Box<dyn Runtime>, P
 
 Startup validation checks all plugin names referenced in config are known, before any sessions are created.
 
+After constructing all plugins per project, the orchestrator performs cross-plugin capability validation: for each project, it checks that the configured `promptDelivery` mode produces steps compatible with the runtime's `supported_steps()`. Specifically: `Protocol` requires `send_protocol` in `runtime.supported_steps()`; `PostLaunch` requires `send_message`; `Inline` requires only `create`. Mismatches produce a startup error with a clear message (e.g., "Project X: promptDelivery `protocol` requires SendProtocol, but runtime `tmux` does not support it"). This catches misconfiguration at startup rather than at first spawn.
+
 ### 2. RuntimeStep — The Shared Vocabulary
 
 ```rust
@@ -286,7 +288,7 @@ Positive:
 Negative:
 
 - Indirection between Agent intent and Runtime execution. When debugging "why didn't the agent launch?", you need to inspect both the plan (what steps were produced) and the execution (how the Runtime handled each step). Mitigated by logging each step before and after execution.
-- `RuntimeStep` is a shared enum that both Agent and Runtime depend on. Adding a new step type requires updating all Runtime implementations (to handle or reject it). With 2 runtimes at MVP this is manageable; with many runtimes post-MVP, a `supports_step()` capability declaration may be needed.
+- `RuntimeStep` is a shared enum that both Agent and Runtime depend on. Adding a new step type requires updating all Runtime implementations (to handle or reject it). With 2 runtimes at MVP this is manageable; with many runtimes post-MVP, a `supports_step()` capability declaration may be needed. At MVP, startup-time cross-plugin validation (checking `promptDelivery` against `supported_steps()`) catches the most common misconfiguration — protocol delivery on a terminal-based runtime.
 - Stubs for 5 of 6 agents means the Agent factory `match` has many arms that return `NotImplemented`. Minor boilerplate, but signals to reviewers that the plugin system is designed for breadth even though MVP only implements depth on `claude-code`.
 - `GatherContext` requires the lifecycle engine's gatherer to know about agent-specific auxiliary log paths. The `auxiliary_log_path()` method on Agent pushes this knowledge into the trait, but the gatherer must read potentially large log files every tick. Mitigated by reading only the tail of the log (last N lines, similar to `runtime.get_output()`).
 - `ShutdownPlan` uses a separate `ShutdownStep` enum executed via engine-level mapping (not `execute_step()`), introducing asymmetry with `LaunchPlan`'s uniform `execute_step()` flow. This is intentional — shutdown involves lifecycle-level escalation decisions — but adds conceptual overhead.

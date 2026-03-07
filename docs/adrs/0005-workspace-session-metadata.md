@@ -1,7 +1,7 @@
 # ADR-0005: Workspace & Session Metadata
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 
@@ -181,7 +181,13 @@ TOKENS_IN=0
 TOKENS_OUT=0
 TERMINATION_REASON=
 BASE_BRANCH=main
+KILL_REQUESTED=false
+TRACKER_CLEANUP_REQUESTED=false
 ```
+
+The `KILL_REQUESTED` field provides durable kill intent — `ao session kill` writes this to disk before the next poll tick processes it, ensuring kill requests survive orchestrator restarts. The lifecycle engine's gatherer reads this field and populates `PollContext.manualKill`.
+
+The `TRACKER_CLEANUP_REQUESTED` field serves the same purpose for `ao session cleanup` — a durable flag written to disk so cleanup requests are not lost on orchestrator restart. The lifecycle engine's gatherer reads this field and treats it equivalently to a kill triggered by tracker-terminal state detection.
 
 `Option<TerminationReason>` serialization: `None` → empty value (`TERMINATION_REASON=`); `Some(variant)` → snake_case (e.g., `TERMINATION_REASON=budget_exceeded`).
 
@@ -239,6 +245,8 @@ pub struct SessionMetadata {
     pub tokens_in: u64,
     pub tokens_out: u64,
     pub termination_reason: Option<TerminationReason>,  // None = not terminated, serializes to ""
+    pub kill_requested: bool,                             // durable kill intent, survives restarts
+    pub tracker_cleanup_requested: bool,                  // durable cleanup intent, survives restarts
 }
 
 #[derive(Serialize, Deserialize)]

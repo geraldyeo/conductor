@@ -41,6 +41,7 @@ Option 1: Monolithic Typed Struct.
 - **`projects` is `HashMap<String, ProjectConfig>`** — the key is the project ID used throughout the system.
 - **Per-project plugin fields (`runtime`, `agent`, `workspace`) are `Option<String>`** — `None` inherits from `defaults`.
 - **`AgentConfig.extra: HashMap<String, Value>`** via `#[serde(flatten)]` absorbs agent-specific fields without schema changes.
+- **Budget enforcement fields** (`maxSessionTokens`, `maxSessionWallClockMs`) are `Option<u64>` — typed at MVP to support ADR-0001's `budgetExceeded` global edge at precedence 1.
 - **Post-MVP fields** (`notifiers`, `notificationRouting`, `reactions`, `maxConcurrentAgentsByState`) are `Option<Value>` — accepted but not validated until their FRs land.
 - **No `deny_unknown_fields`** on `Config` or `ProjectConfig` — this allows forward-compatibility with fields from newer orchestrator versions. Nested structs with stable field sets (e.g., `Hooks`) may use `deny_unknown_fields` to catch typos.
 - **`AO_SESSION` and `AO_DATA_DIR`** environment variables (PRD lines 256-257) are set per-session by the runtime/lifecycle engine, not read by the config loader. They are not part of this ADR's scope.
@@ -79,6 +80,7 @@ discover_config_path()
 - `permissions` ∈ `{"skip", "default"}`, `sandbox` ∈ `{"workspace-write", "read-only", "full"}`
 - Plugin names are known values (runtime, agent, workspace, tracker, scm) — see Consequences for extensibility note
 - `agent_rules` and `agent_rules_file` are mutually exclusive per project
+- `maxSessionTokens` and `maxSessionWallClockMs`, when present, must be positive integers (> 0) — enforced via `garde(range(min = 1))` or custom validator
 
 ### Secrets
 

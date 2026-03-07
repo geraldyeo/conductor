@@ -221,10 +221,22 @@ The gatherer calls `get_issue()` and `classify_state()`:
 ```rust
 match tracker.get_issue(&session.issue_id).await {
     Ok(issue) => {
+        not_found_counts.remove(&session.id);
         ctx.tracker_state = classify_state(&issue.state, &tracker_config);
     }
     Err(TrackerError::NotFound(_)) => {
-        ctx.tracker_state = TrackerState::Terminal;  // deleted issue → terminal
+        let count = not_found_counts.entry(session.id.clone()).or_insert(0);
+        *count += 1;
+        if *count >= 2 {
+            ctx.tracker_state = TrackerState::Terminal;  // confirmed deletion → terminal
+        } else {
+            ctx.tracker_state = TrackerState::Active;    // first NotFound → grace period
+            tracing::warn!(
+                "Issue {} not found — may have been deleted. \
+                 Will treat as terminal on next tick if still not found.",
+                session.issue_id
+            );
+        }
     }
     Err(_) => {
         ctx.tracker_state = TrackerState::Active;    // API failure → safe default
@@ -232,7 +244,11 @@ match tracker.get_issue(&session.issue_id).await {
 }
 ```
 
-Deleted issues (`NotFound`) are treated as terminal — an agent working on a deleted issue should stop. API failures default to active — a transient error shouldn't kill a session.
+Deleted issues (`NotFound`) use a **two-tick grace period** before being treated as terminal. The first `NotFound` defaults to `Active` (same safe default as other errors) and logs a warning. The second consecutive `NotFound` confirms the deletion and sets `Terminal`. This gives humans one poll cycle (~30s) to react to accidental issue deletions before the `cleanup` global edge fires. The `not_found_counts` map is held in-memory per gatherer instance (not persisted) — on restart it resets to zero, which is the safe direction (requires two fresh ticks to confirm). A successful `get_issue()` clears the counter.
+
+API failures default to active — a transient error shouldn't kill a session.
+
+> **Note:** Before workspace destruction, the lifecycle engine archives session metadata (ADR-0005). However, uncommitted changes in the git worktree are lost on `git worktree remove --force`. Agents are instructed (via base prompt, ADR-0008) to commit frequently, which reduces but does not eliminate this risk.
 
 **PollContext update:** `trackerState` changes from a string literal type (ADR-0001) to the `TrackerState` enum. The `TrackerState` enum lives in `packages/core/src/tracker/mod.rs`.
 
@@ -313,7 +329,7 @@ packages/core/src/tracker/
 | `add_label()` / `remove_label()` | FR4 (Reactions) | Label management is reaction-driven |
 | Linear tracker plugin | Post-MVP | GitHub-only at MVP |
 | Batched GraphQL queries | Post-MVP | Subprocess-per-call fine at MVP scale |
-| `deletedIssuePolicy` config | Post-MVP | Hardcoded to terminal at MVP |
+| `deletedIssuePolicy` config | Post-MVP | MVP uses two-tick confirmation (grace period); post-MVP adds configurable policy (`terminal`, `warn`, `ignore`) |
 | Token-scoped auth | FR17 (Mutation Authority) | MVP uses ambient `gh` auth |
 | Prompt injection sanitization | ADR-0008 (Prompt System) | `IssueContent` returned verbatim |
 
@@ -327,7 +343,7 @@ Positive:
 - State classification is decoupled from the tracker — `classify_state()` is a pure function over config, testable without I/O. The same function works for GitHub (2 states) and Linear (many states) because the mapping is config-driven.
 - `IssueContent` separates data retrieval from prompt formatting. The Tracker fetches verbatim; the prompt system (ADR-0008) composes and sanitizes. Neither subsystem knows about the other's internals.
 - `gh` CLI handles auth, rate limiting, token refresh, and Enterprise Server URLs — none of this needs to be reimplemented. `gh --json` provides stable, structured output. The trait design is implementation-independent, so upgrading to direct HTTP post-MVP changes only the GitHub module.
-- Gather-phase error handling follows ADR-0001's convergence principle: deleted issues → terminal, API failures → active (safe default), corrected on the next poll tick. No single-tick failure kills a session.
+- Gather-phase error handling follows ADR-0001's convergence principle: deleted issues → terminal after a two-tick grace period, API failures → active (safe default), corrected on the next poll tick. No single-tick failure kills a session, and accidental issue deletions have a ~30s window for human intervention before workspace destruction.
 - Pre-spawn validation rejects terminal or missing issues before creating any resources, avoiding the unwind sequence from ADR-0005 steps 2-8.
 - Recovery is free — the existing poll loop handles it. No special recovery code, no tracker scanning, no additional state to manage.
 - `branch_name()` on the Tracker (not the Workspace) allows tracker-specific branch naming conventions. GitHub uses `{id}-{slug}`, Linear could use its native `{team}-{number}-{slug}` format.
