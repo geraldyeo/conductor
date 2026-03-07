@@ -23,6 +23,7 @@ Each ADR follows a hybrid format combining [Michael Nygard's original](https://c
 | [ADR-0005](0005-workspace-session-metadata.md) | Workspace & Session Metadata | Accepted |
 | [ADR-0006](0006-tracker-integration.md) | Tracker Integration | Accepted |
 | [ADR-0007](0007-cli.md) | CLI | Accepted |
+| [ADR-0008](0008-prompt-system.md) | Prompt System | Accepted |
 
 ## Layered Approach
 
