@@ -10,10 +10,10 @@ Inspired by ComposioHQ's agent-orchestrator (plugin architecture, reaction engin
 
 ## Status
 
-This project is in the **design/documentation phase**. No source code exists yet. Key design documents live in `docs/`:
+The design/documentation phase is complete (8 ADRs accepted). The project is entering the **implementation phase**. See [Development Workflows](#development-workflows) below for how to contribute code. Key design documents live in `docs/`:
 
 - `docs/prds/` — Product requirements documents and reviews
-- `docs/adrs/` — Architecture decision records (7 foundational ADRs)
+- `docs/adrs/` — Architecture decision records (8 ADRs accepted)
 - `docs/plans/` — Design documents and implementation plans
 
 ## Document Conventions
@@ -22,7 +22,7 @@ See `AGENTS.md` for shared conventions (PRD/ADR naming, review file naming, ADR 
 
 ## Architecture
 
-Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language and toolchain TBD (see ADRs).
+Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language: **Rust** (ADR-0002). Toolchain TBD.
 
 ### Eight Slot Plugin System
 
@@ -76,4 +76,74 @@ Both commands are defined in `~/.claude/commands/` and require `gemini` and `cod
 
 ## Tech Stack
 
-Language and framework choices are TBD — see ADRs. Decided so far: tmux (runtime), `gh` CLI + GitHub GraphQL (SCM), GitHub Actions (CI), gitleaks (security).
+Language: **Rust** (ADR-0002). Framework choices TBD. Decided so far: tmux (runtime), `gh` CLI + GitHub GraphQL (SCM), GitHub Actions (CI), gitleaks (security).
+
+## Development Workflows
+
+### Environment Setup
+
+Run `make setup` to verify and install prerequisites. Requires:
+
+- `rustup` (stable toolchain) — <https://rustup.rs>
+- `gh` CLI — GitHub operations
+- `tmux` — agent runtime
+- `gemini` CLI — multi-model review
+- `codex` CLI — multi-model review
+
+Cargo tools (`cargo-nextest`) are installed by `make setup`. Dashboard and mobile toolchains are managed separately (TBD).
+
+### Build & Test
+
+Single Cargo workspace at repo root covers `packages/cli` and `packages/core`.
+
+| Command | Purpose |
+|---|---|
+| `cargo build --workspace` | Build all packages |
+| `cargo nextest run` | Run all tests (preferred over `cargo test`) |
+| `cargo nextest run -p core` | Run tests for a specific package |
+| `cargo clippy --workspace -- -D warnings` | Lint (warnings are errors) |
+| `cargo fmt` | Format all code |
+| `cargo fmt --check` | Check formatting (CI) |
+
+`cargo-nextest` is preferred for better output, parallelism, and retry support. Dashboard and mobile have their own toolchains (TBD) and are not part of the Cargo workspace.
+
+### Feature Development Flow
+
+Work is broken into independent tasks, each executed by a subagent in an isolated worktree. Use `superpowers:dispatching-parallel-agents` to parallelise independent tasks.
+
+**Per-task flow:**
+
+1. `EnterWorktree` — create an isolated workspace on a feature branch (`feat/<scope>/<short-description>`, e.g. `feat/core/session-store`)
+2. Implement the task
+3. Run the [Review Loop](#review-loop) below
+4. Open a PR when review passes — one PR per worktree/task
+
+**Humans review and merge PRs. Subagents do not merge.**
+
+#### Conflict Resolution
+
+Assign non-overlapping file/module ownership per task. If two tasks touch the same file, sequence them rather than parallelise.
+
+When conflicts arise after another PR merges:
+
+1. Rebase the worktree branch onto updated `main`
+2. Re-run `/code-review-multi diff` on the rebase result
+3. Update the PR
+
+PRs with no conflicts merge first. For features with many parallel PRs, a coordinator subagent can manage merge ordering (applying the orchestrator-as-session pattern from ADR-0007 to development).
+
+### Review Loop
+
+Run within each worktree before opening a PR:
+
+1. Run `/code-review-multi diff` — dispatches Gemini + Codex in parallel, classifies findings as Critical / Warning / Info
+2. **Critical:** fix and re-run. Hard gate — no PR opens with an unresolved Critical.
+3. **Warning:** fix and re-run. After 2 rounds, document remaining Warnings in the PR description with rationale. Humans decide in review.
+4. **Info:** advisory only, no action required.
+5. Open PR when no Critical findings remain.
+
+**Every PR description must include:**
+
+- What was implemented
+- Any unresolved Warnings with rationale
+- Number of review rounds completed
