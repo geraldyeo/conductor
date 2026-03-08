@@ -2,6 +2,7 @@ pub mod types;
 
 // Stubs — filled in by later tasks
 pub mod agent;
+pub mod plugins;
 pub mod ipc;
 pub mod orchestrator;
 pub mod prompt;
