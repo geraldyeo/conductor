@@ -6,6 +6,7 @@ pub mod ipc;
 pub mod orchestrator;
 pub mod prompt;
 pub mod runtime;
+pub mod session_store;
 pub mod store;
 pub mod tracker;
 pub mod utils;
