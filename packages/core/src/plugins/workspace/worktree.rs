@@ -21,13 +21,36 @@ impl WorktreeWorkspace {
 }
 
 fn prevent_symlink_escape(base: &Path, target: &Path) -> Result<(), WorkspaceError> {
-    let canonical_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+    // Fail closed: if we cannot canonicalize the base, reject rather than skip.
+    let canonical_base = base.canonicalize().map_err(|e| {
+        WorkspaceError::SymlinkEscape(format!("cannot resolve base {}: {e}", base.display()))
+    })?;
     let canonical_target = if target.exists() {
-        target.canonicalize().unwrap_or_else(|_| target.to_path_buf())
+        target.canonicalize().map_err(|e| {
+            WorkspaceError::SymlinkEscape(format!(
+                "cannot resolve target {}: {e}",
+                target.display()
+            ))
+        })?
     } else {
-        let parent = target.parent().unwrap_or(target);
-        let canonical_parent = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
-        canonical_parent.join(target.file_name().unwrap_or_default())
+        // Target doesn't exist — walk up to the nearest existing ancestor.
+        let mut ancestor = target.to_path_buf();
+        loop {
+            if ancestor.exists() {
+                break ancestor.canonicalize().map_err(|e| {
+                    WorkspaceError::SymlinkEscape(format!(
+                        "cannot resolve ancestor {}: {e}",
+                        ancestor.display()
+                    ))
+                })?;
+            }
+            if !ancestor.pop() {
+                return Err(WorkspaceError::SymlinkEscape(format!(
+                    "cannot resolve any ancestor of {}",
+                    target.display()
+                )));
+            }
+        }
     };
     if !canonical_target.starts_with(&canonical_base) {
         return Err(WorkspaceError::SymlinkEscape(format!(

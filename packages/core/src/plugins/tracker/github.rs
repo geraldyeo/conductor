@@ -1,5 +1,5 @@
 use super::{IssueComment, IssueContent, Tracker, TrackerError};
-use crate::utils::CommandRunner;
+use crate::utils::{parse_github_issue_number, CommandRunner};
 use async_trait::async_trait;
 
 pub struct GitHubTracker {
@@ -51,13 +51,9 @@ impl GitHubTracker {
 /// Parse issue number from a GitHub issue URL.
 /// Expected format: `https://github.com/owner/repo/issues/123`
 fn parse_issue_number(url: &str) -> Result<u64, TrackerError> {
-    url.split('/')
-        .next_back()
-        .and_then(|s| s.split('#').next()) // strip URL fragments like #issuecomment-123
-        .and_then(|s| s.parse::<u64>().ok())
-        .ok_or_else(|| {
-            TrackerError::ParseError(format!("cannot parse issue number from URL: {url}"))
-        })
+    parse_github_issue_number(url).ok_or_else(|| {
+        TrackerError::ParseError(format!("cannot parse issue number from URL: {url}"))
+    })
 }
 
 /// Parse a `serde_json::Value` (from `gh issue view --json ...`) into `IssueContent`.

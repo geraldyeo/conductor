@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use conductor_core::agent::ClaudeCodeAgent;
 use conductor_core::orchestrator::{Orchestrator, OrchestratorConfig};
 use conductor_core::runtime::TmuxRuntime;
-use conductor_core::utils::{CommandRunner, DataPaths};
+use conductor_core::utils::{parse_github_issue_number, CommandRunner, DataPaths};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -73,11 +73,7 @@ pub async fn run_spawn(
 /// Derive a branch name from an issue URL.
 /// e.g. "https://github.com/org/repo/issues/123" -> "ao/issue-123"
 fn derive_branch_name(issue_url: &str) -> String {
-    let number = issue_url
-        .split('/')
-        .next_back()
-        .and_then(|s| s.split('#').next()) // strip URL fragments like #issuecomment-123
-        .and_then(|s| s.parse::<u64>().ok())
+    let number = parse_github_issue_number(issue_url)
         .map(|n| n.to_string())
         .unwrap_or_else(|| "unknown".to_string());
     format!("ao/issue-{number}")
