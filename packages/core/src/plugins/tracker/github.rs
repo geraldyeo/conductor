@@ -182,7 +182,7 @@ impl Tracker for GitHubTracker {
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join("-");
-        let slug = if slug.len() > 50 { &slug[..50] } else { &slug };
+        let slug: String = slug.chars().take(50).collect();
         // Trim trailing hyphens from truncation
         let slug = slug.trim_end_matches('-');
         format!("{issue_number}-{slug}")

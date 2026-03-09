@@ -31,7 +31,9 @@ impl CommandRunner {
         env: Option<HashMap<String, String>>,
         timeout: Option<Duration>,
     ) -> Result<CommandOutput, CommandError> {
-        let (program, rest) = args.split_first().expect("args must not be empty");
+        let (&program, rest) = args.split_first().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "args must not be empty")
+        })?;
         let mut cmd = Command::new(program);
         cmd.args(rest);
         if let Some(env) = env {
@@ -47,7 +49,9 @@ impl CommandRunner {
         env: Option<HashMap<String, String>>,
         timeout: Option<Duration>,
     ) -> Result<CommandOutput, CommandError> {
-        let (program, rest) = args.split_first().expect("args must not be empty");
+        let (&program, rest) = args.split_first().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "args must not be empty")
+        })?;
         let mut cmd = Command::new(program);
         cmd.args(rest).current_dir(cwd);
         if let Some(env) = env {

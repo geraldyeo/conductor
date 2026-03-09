@@ -34,12 +34,14 @@ pub struct Orchestrator {
 }
 
 /// Deterministic session ID from issue URL.
+/// Uses FNV-1a 64-bit hash — stable across Rust versions and platforms.
 fn make_session_id(issue_url: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut h = DefaultHasher::new();
-    issue_url.hash(&mut h);
-    format!("ao-{:x}", h.finish())
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for byte in issue_url.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("ao-{:x}", hash)
 }
 
 impl Orchestrator {
