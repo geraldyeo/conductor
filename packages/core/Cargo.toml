@@ -13,6 +13,7 @@ anyhow = { workspace = true }
 tera = { workspace = true }
 strum = { workspace = true }
 tracing = { workspace = true }
+dirs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

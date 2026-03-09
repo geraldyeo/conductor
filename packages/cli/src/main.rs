@@ -1,8 +1,10 @@
+mod spawn;
+
 use clap::{Parser, Subcommand};
-use conductor_core::ipc::{send_request, OrchestratorRequest, OrchestratorResponse};
+use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "ao", about = "Agent Orchestrator")]
+#[command(name = "ao", about = "Agent Orchestrator CLI", version)]
 struct Cli {
     #[arg(long, global = true)]
     json: bool,
@@ -14,16 +16,18 @@ struct Cli {
 enum Commands {
     /// Spawn an agent session for a GitHub issue
     Spawn {
-        /// GitHub issue URL or number
-        issue: String,
-        /// Project ID (auto-detected if only one project)
-        #[arg(short, long)]
-        project: Option<String>,
+        /// GitHub issue URL
+        issue_url: String,
+        /// Git branch name (auto-derived from issue URL if omitted)
+        #[arg(long)]
+        branch: Option<String>,
+        /// Custom prompt for the agent
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Path to the repository root
+        #[arg(long)]
+        repo: Option<PathBuf>,
     },
-    /// Start the orchestrator
-    Start,
-    /// Stop the orchestrator
-    Stop,
 }
 
 #[tokio::main]
@@ -35,97 +39,35 @@ async fn main() {
 
     let cli = Cli::parse();
     match cli.command {
-        Commands::Spawn { issue, project } => {
-            let issue_id = parse_issue_id(&issue);
-            let project_id = project.unwrap_or_else(|| "default".to_string());
-            let req = OrchestratorRequest::Spawn {
-                project_id,
-                issue_id,
-            };
-            match send_request(&req).await {
-                Ok(OrchestratorResponse::SpawnResult { session_id, branch }) => {
-                    if cli.json {
-                        println!(
-                            "{}",
-                            serde_json::json!({"session_id": session_id, "branch": branch})
-                        );
-                    } else {
-                        println!("Session started: {session_id}");
-                        println!("Branch: {branch}");
-                    }
-                }
-                Ok(OrchestratorResponse::Error { code, message }) => {
-                    eprintln!("error [{code}]: {message}");
-                    std::process::exit(1);
-                }
-                Ok(other) => {
-                    eprintln!("unexpected response: {other:?}");
-                    std::process::exit(1);
-                }
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    std::process::exit(4);
-                }
-            }
-        }
-        Commands::Start => {
-            eprintln!("ao start: not yet implemented in walking skeleton");
-            eprintln!("Run spawn_session() directly for now.");
-            std::process::exit(1);
-        }
-        Commands::Stop => {
-            let req = OrchestratorRequest::Stop;
-            match send_request(&req).await {
-                Ok(_) => println!("Orchestrator stopped."),
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    std::process::exit(4);
-                }
+        Commands::Spawn {
+            issue_url,
+            branch,
+            prompt,
+            repo,
+        } => {
+            if let Err(e) = spawn::run_spawn(
+                &issue_url,
+                branch.as_deref(),
+                prompt.as_deref(),
+                repo.as_deref(),
+                cli.json,
+            )
+            .await
+            {
+                eprintln!("error: {e:#}");
+                std::process::exit(1);
             }
         }
     }
-}
-
-/// Parse an issue identifier from various formats:
-/// - "42" → "42"
-/// - "#42" → "42"
-/// - "https://github.com/owner/repo/issues/42" → "42"
-fn parse_issue_id(issue: &str) -> String {
-    if let Some(id) = issue.strip_prefix('#') {
-        return id.to_string();
-    }
-    if issue.contains('/') {
-        if let Some(id) = issue.rsplit('/').next() {
-            return id.to_string();
-        }
-    }
-    issue.to_string()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::CommandFactory;
 
     #[test]
-    fn test_parse_issue_id_plain_number() {
-        assert_eq!(parse_issue_id("42"), "42");
-    }
-
-    #[test]
-    fn test_parse_issue_id_hash_prefix() {
-        assert_eq!(parse_issue_id("#42"), "42");
-    }
-
-    #[test]
-    fn test_parse_issue_id_full_url() {
-        assert_eq!(
-            parse_issue_id("https://github.com/owner/repo/issues/42"),
-            "42"
-        );
-    }
-
-    #[test]
-    fn test_parse_issue_id_short_url() {
-        assert_eq!(parse_issue_id("owner/repo/issues/99"), "99");
+    fn test_cli_parses() {
+        Cli::command().debug_assert();
     }
 }
