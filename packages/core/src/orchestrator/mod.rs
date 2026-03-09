@@ -131,9 +131,16 @@ impl Orchestrator {
             }
         }
 
-        // Ensure parent directory exists
+        // Ensure parent directory exists with owner-only permissions (0700)
+        // so other local users cannot connect to the Unix domain socket.
         if let Some(parent) = self.socket_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let perms = std::fs::Permissions::from_mode(0o700);
+                std::fs::set_permissions(parent, perms)?;
+            }
         }
 
         let listener = UnixListener::bind(&self.socket_path)?;

@@ -33,25 +33,24 @@ pub async fn run(
     }
 
     if json {
+        let payload: Vec<_> = all_sessions
+            .iter()
+            .map(|s| {
+                serde_json::json!({
+                    "id": s.id,
+                    "status": s.status.to_string(),
+                    "issue_url": s.issue_url,
+                    "branch": s.branch,
+                    "created_at": s.created_at,
+                    "input_tokens": s.input_tokens,
+                    "output_tokens": s.output_tokens,
+                })
+            })
+            .collect();
         println!(
             "{}",
-            serde_json::to_string(
-                &all_sessions
-                    .iter()
-                    .map(|s| {
-                        serde_json::json!({
-                            "id": s.id,
-                            "status": s.status.to_string(),
-                            "issue_url": s.issue_url,
-                            "branch": s.branch,
-                            "created_at": s.created_at,
-                            "input_tokens": s.input_tokens,
-                            "output_tokens": s.output_tokens,
-                        })
-                    })
-                    .collect::<Vec<_>>()
-            )
-            .unwrap()
+            serde_json::to_string(&payload)
+                .map_err(|e| CliError::General(format!("JSON serialization failed: {e}")))?
         );
     } else {
         println!("{}", format_sessions(&all_sessions));

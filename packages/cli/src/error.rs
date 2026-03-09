@@ -10,6 +10,8 @@ pub enum CliError {
     Ipc(#[from] crate::ipc::client::IpcError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Resolve(#[from] crate::resolve::ResolveError),
 }
 
 /// Map CliError to process exit code.
@@ -17,7 +19,7 @@ pub fn exit_code(e: &CliError) -> i32 {
     match e {
         CliError::Config(_) => 3,
         CliError::Ipc(crate::ipc::client::IpcError::NotRunning(_)) => 4,
-        CliError::General(_) | CliError::Io(_) | CliError::Ipc(_) => 1,
+        CliError::General(_) | CliError::Io(_) | CliError::Ipc(_) | CliError::Resolve(_) => 1,
     }
 }
 

@@ -18,7 +18,7 @@ pub async fn run(
     };
 
     let project_id =
-        resolve_project(&config, project).map_err(|e| CliError::General(e.to_string()))?;
+        resolve_project(&config, project)?;
 
     let req = OrchestratorRequest::BatchSpawn {
         project_id: project_id.to_string(),
@@ -31,7 +31,11 @@ pub async fn run(
 
     if let OrchestratorResponse::BatchSpawnResult { results } = response {
         if json {
-            println!("{}", serde_json::to_string(&results).unwrap());
+            println!(
+                "{}",
+                serde_json::to_string(&results)
+                    .map_err(|e| CliError::General(format!("JSON serialization failed: {e}")))?
+            );
         } else {
             for item in &results {
                 match &item.outcome {

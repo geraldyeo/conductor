@@ -99,9 +99,9 @@ async fn main() {
         .with_writer(std::io::stderr)
         .init();
 
+    let json = cli.json;
     let result = run(cli).await;
     if let Err(e) = result {
-        let json = std::env::args().any(|a| a == "--json");
         print_error(&e, json);
         std::process::exit(exit_code(&e));
     }
@@ -177,7 +177,14 @@ async fn build_send_content(args: Vec<String>, file: Option<PathBuf>) -> Result<
     if !args.is_empty() {
         return Ok(args.join(" "));
     }
-    // Read from stdin if not a TTY
+    // Read from stdin only when it is not an interactive terminal; otherwise
+    // the CLI would hang indefinitely waiting for EOF (Ctrl-D).
+    use std::io::IsTerminal;
+    if std::io::stdin().is_terminal() {
+        return Err(CliError::General(
+            "No message content provided. Use arguments, --file, or pipe via stdin.".to_string(),
+        ));
+    }
     use tokio::io::AsyncReadExt;
     let mut buf = String::new();
     tokio::io::stdin()

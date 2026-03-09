@@ -34,7 +34,7 @@ pub async fn cleanup(
     };
 
     let project_id =
-        resolve_project(&config, project).map_err(|e| CliError::General(e.to_string()))?;
+        resolve_project(&config, project)?;
 
     let req = OrchestratorRequest::Cleanup {
         project_id: project_id.to_string(),
