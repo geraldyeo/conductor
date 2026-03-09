@@ -87,12 +87,9 @@ impl StateGraph {
         edge!(SessionStatus::Working, SessionStatus::PrOpen, 3, |c| {
             c.pr.as_ref().is_some_and(|p| p.detected)
         });
-        edge!(
-            SessionStatus::Working,
-            SessionStatus::NeedsInput,
-            4,
-            |c| { c.activity_state == ActivityState::WaitingInput }
-        );
+        edge!(SessionStatus::Working, SessionStatus::NeedsInput, 4, |c| {
+            c.activity_state == ActivityState::WaitingInput
+        });
         edge!(SessionStatus::Working, SessionStatus::Stuck, 5, |c| {
             c.activity_state == ActivityState::Idle
         });
@@ -103,15 +100,11 @@ impl StateGraph {
             !c.runtime_alive
         });
         edge!(SessionStatus::Working, SessionStatus::Done, 8, |c| {
-            c.activity_state == ActivityState::Exited
-                && c.tracker_state == TrackerState::Terminal
+            c.activity_state == ActivityState::Exited && c.tracker_state == TrackerState::Terminal
         });
-        edge!(
-            SessionStatus::Working,
-            SessionStatus::Terminated,
-            9,
-            |c| { c.activity_state == ActivityState::Exited }
-        );
+        edge!(SessionStatus::Working, SessionStatus::Terminated, 9, |c| {
+            c.activity_state == ActivityState::Exited
+        });
 
         edge!(SessionStatus::PrOpen, SessionStatus::CiFailed, 10, |c| {
             c.pr.as_ref().is_some_and(|p| p.ci_status == "failed")
@@ -141,8 +134,7 @@ impl StateGraph {
             SessionStatus::ChangesRequested,
             16,
             |c| {
-                c.pr
-                    .as_ref()
+                c.pr.as_ref()
                     .is_some_and(|p| p.review_decision == "changes_requested")
             }
         );
@@ -151,8 +143,7 @@ impl StateGraph {
             SessionStatus::Approved,
             17,
             |c| {
-                c.pr
-                    .as_ref()
+                c.pr.as_ref()
                     .is_some_and(|p| p.review_decision == "approved")
             }
         );
@@ -176,42 +167,24 @@ impl StateGraph {
             |c| { !c.runtime_alive }
         );
 
-        edge!(
-            SessionStatus::Approved,
-            SessionStatus::Mergeable,
-            21,
-            |c| {
-                c.pr
-                    .as_ref()
-                    .is_some_and(|p| p.ci_status == "green" && p.mergeable)
-            }
-        );
-        edge!(
-            SessionStatus::Approved,
-            SessionStatus::CiFailed,
-            22,
-            |c| { c.pr.as_ref().is_some_and(|p| p.ci_status == "failed") }
-        );
+        edge!(SessionStatus::Approved, SessionStatus::Mergeable, 21, |c| {
+            c.pr.as_ref()
+                .is_some_and(|p| p.ci_status == "green" && p.mergeable)
+        });
+        edge!(SessionStatus::Approved, SessionStatus::CiFailed, 22, |c| {
+            c.pr.as_ref().is_some_and(|p| p.ci_status == "failed")
+        });
 
-        edge!(
-            SessionStatus::Mergeable,
-            SessionStatus::Merged,
-            23,
-            |c| { c.pr.as_ref().is_some_and(|p| p.state == "merged") }
-        );
+        edge!(SessionStatus::Mergeable, SessionStatus::Merged, 23, |c| {
+            c.pr.as_ref().is_some_and(|p| p.state == "merged")
+        });
 
-        edge!(
-            SessionStatus::NeedsInput,
-            SessionStatus::Working,
-            24,
-            |c| { c.activity_state == ActivityState::Active }
-        );
-        edge!(
-            SessionStatus::NeedsInput,
-            SessionStatus::Killed,
-            25,
-            |c| { !c.runtime_alive }
-        );
+        edge!(SessionStatus::NeedsInput, SessionStatus::Working, 24, |c| {
+            c.activity_state == ActivityState::Active
+        });
+        edge!(SessionStatus::NeedsInput, SessionStatus::Killed, 25, |c| {
+            !c.runtime_alive
+        });
 
         edge!(SessionStatus::Stuck, SessionStatus::Working, 26, |c| {
             c.activity_state == ActivityState::Active
@@ -254,11 +227,7 @@ impl StateGraph {
     fn validate(&self) {
         // All non-terminal nodes must have at least one outgoing edge
         for (status, edges) in &self.nodes {
-            assert!(
-                !edges.is_empty(),
-                "node {:?} has no outgoing edges",
-                status
-            );
+            assert!(!edges.is_empty(), "node {:?} has no outgoing edges", status);
         }
         // Terminal nodes must NOT be in nodes map (no outgoing edges)
         for t in &self.terminal {

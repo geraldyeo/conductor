@@ -1,6 +1,6 @@
+mod discovery;
 pub mod error;
 pub mod schema;
-mod discovery;
 mod secrets;
 
 pub use error::ConfigError;
@@ -77,7 +77,10 @@ mod tests {
     #[test]
     fn test_load_valid_config() {
         // path validation requires the path to exist
-        let path = std::env::current_dir().unwrap().to_string_lossy().to_string();
+        let path = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         let yaml = format!(
             r#"projects:
   myapp:
@@ -89,7 +92,10 @@ mod tests {
         let config = load_from_path(f.path()).unwrap();
         assert!(config.projects.contains_key("myapp"));
         // defaults should be resolved
-        assert_eq!(config.projects["myapp"].agent.as_deref(), Some("claude-code"));
+        assert_eq!(
+            config.projects["myapp"].agent.as_deref(),
+            Some("claude-code")
+        );
     }
 
     #[test]
@@ -102,7 +108,10 @@ mod tests {
 
     #[test]
     fn test_load_bad_repo_format_fails() {
-        let path = std::env::current_dir().unwrap().to_string_lossy().to_string();
+        let path = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         let yaml = format!(
             r#"projects:
   myapp:
@@ -125,7 +134,10 @@ mod tests {
 
     #[test]
     fn test_resolve_defaults_fills_missing_project_fields() {
-        let path = std::env::current_dir().unwrap().to_string_lossy().to_string();
+        let path = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         let yaml = format!(
             r#"defaults:
   runtime: process

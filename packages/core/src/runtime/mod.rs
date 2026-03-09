@@ -4,14 +4,13 @@ mod tmux;
 pub use error::RuntimeError;
 pub use tmux::TmuxRuntime;
 
-use async_trait::async_trait;
 use crate::types::{PluginMeta, RuntimeStep};
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait Runtime: Send + Sync {
     fn meta(&self) -> PluginMeta;
-    async fn execute_step(&self, session_id: &str, step: &RuntimeStep)
-        -> Result<(), RuntimeError>;
+    async fn execute_step(&self, session_id: &str, step: &RuntimeStep) -> Result<(), RuntimeError>;
     async fn get_output(&self, session_id: &str, lines: usize) -> Result<String, RuntimeError>;
     async fn is_alive(&self, session_id: &str) -> Result<bool, RuntimeError>;
     async fn destroy(&self, session_id: &str) -> Result<(), RuntimeError>;

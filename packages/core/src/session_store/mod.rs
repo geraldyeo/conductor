@@ -117,9 +117,9 @@ fn deserialize_metadata(content: &str) -> Result<SessionMetadata, StoreError> {
         if line.is_empty() {
             continue;
         }
-        let idx = line.find('=').ok_or_else(|| {
-            StoreError::Serialization(format!("malformed metadata line: {line}"))
-        })?;
+        let idx = line
+            .find('=')
+            .ok_or_else(|| StoreError::Serialization(format!("malformed metadata line: {line}")))?;
         let key = line[..idx].to_string();
         let value = unescape_value(&line[idx + 1..]);
         map.insert(key, value);
@@ -253,8 +253,8 @@ impl SessionStore {
         entry: &JournalEntry,
     ) -> Result<(), StoreError> {
         let path = self.paths.journal_file(session_id);
-        let line = serde_json::to_string(entry)
-            .map_err(|e| StoreError::Serialization(e.to_string()))?;
+        let line =
+            serde_json::to_string(entry).map_err(|e| StoreError::Serialization(e.to_string()))?;
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -274,10 +274,7 @@ impl SessionStore {
             Err(e) => return Err(StoreError::Io(e)),
         };
 
-        let lines: Vec<&str> = content
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
+        let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
 
         if lines.is_empty() {
             return Ok(vec![]);
@@ -345,7 +342,10 @@ impl SessionStore {
     /// List only non-terminal sessions.
     pub async fn list_active(&self) -> Result<Vec<SessionMetadata>, StoreError> {
         let all = self.list().await?;
-        Ok(all.into_iter().filter(|s| !s.status.is_terminal()).collect())
+        Ok(all
+            .into_iter()
+            .filter(|s| !s.status.is_terminal())
+            .collect())
     }
 
     /// Delete a session directory recursively.

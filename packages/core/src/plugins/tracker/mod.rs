@@ -60,10 +60,7 @@ pub fn classify_state(state: &str, terminal_states: &[String]) -> TrackerState {
 #[async_trait]
 pub trait Tracker: Send + Sync {
     /// Fetch raw issue JSON. Returns None if not found.
-    async fn get_issue(
-        &self,
-        issue_url: &str,
-    ) -> Result<Option<serde_json::Value>, TrackerError>;
+    async fn get_issue(&self, issue_url: &str) -> Result<Option<serde_json::Value>, TrackerError>;
 
     /// Derive the branch name for the issue (e.g. "123-fix-bug").
     fn branch_name(&self, issue_number: u64, title: &str) -> String;

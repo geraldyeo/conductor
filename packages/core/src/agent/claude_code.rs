@@ -31,11 +31,7 @@ impl Agent for ClaudeCodeAgent {
         env.insert("AO_SESSION".to_string(), ctx.session_id.clone());
         LaunchPlan {
             steps: vec![RuntimeStep::Create {
-                command: vec![
-                    "claude".to_string(),
-                    "-p".to_string(),
-                    ctx.prompt.clone(),
-                ],
+                command: vec!["claude".to_string(), "-p".to_string(), ctx.prompt.clone()],
                 env,
                 working_dir: ctx.workspace_path.clone(),
             }],

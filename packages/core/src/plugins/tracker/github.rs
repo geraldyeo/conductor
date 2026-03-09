@@ -63,10 +63,7 @@ pub fn parse_issue_content(value: serde_json::Value) -> Result<IssueContent, Tra
         .ok_or_else(|| TrackerError::ParseError("missing field: title".to_string()))?
         .to_string();
 
-    let body = value["body"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let body = value["body"].as_str().unwrap_or("").to_string();
 
     let state = value["state"]
         .as_str()
@@ -77,10 +74,7 @@ pub fn parse_issue_content(value: serde_json::Value) -> Result<IssueContent, Tra
         .as_u64()
         .ok_or_else(|| TrackerError::ParseError("missing field: number".to_string()))?;
 
-    let author = value["author"]["login"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let author = value["author"]["login"].as_str().unwrap_or("").to_string();
 
     let labels = value["labels"]
         .as_array()
@@ -105,10 +99,7 @@ pub fn parse_issue_content(value: serde_json::Value) -> Result<IssueContent, Tra
         .map(|arr| {
             arr.iter()
                 .map(|c| IssueComment {
-                    author: c["author"]["login"]
-                        .as_str()
-                        .unwrap_or("")
-                        .to_string(),
+                    author: c["author"]["login"].as_str().unwrap_or("").to_string(),
                     body: c["body"].as_str().unwrap_or("").to_string(),
                     created_at: c["createdAt"].as_str().unwrap_or("").to_string(),
                 })
@@ -130,10 +121,7 @@ pub fn parse_issue_content(value: serde_json::Value) -> Result<IssueContent, Tra
 
 #[async_trait]
 impl Tracker for GitHubTracker {
-    async fn get_issue(
-        &self,
-        issue_url: &str,
-    ) -> Result<Option<serde_json::Value>, TrackerError> {
+    async fn get_issue(&self, issue_url: &str) -> Result<Option<serde_json::Value>, TrackerError> {
         let issue_number = parse_issue_number(issue_url)?;
         let output = self
             .runner
@@ -155,9 +143,7 @@ impl Tracker for GitHubTracker {
             .map_err(|e| TrackerError::CommandFailed(e.to_string()))?;
 
         if !output.success {
-            if output.stderr.contains("Could not resolve")
-                || output.stderr.contains("not found")
-            {
+            if output.stderr.contains("Could not resolve") || output.stderr.contains("not found") {
                 return Ok(None);
             }
             return Err(TrackerError::CommandFailed(output.stderr));
@@ -256,12 +242,22 @@ mod tests {
     fn test_branch_name_truncates_long_title() {
         let tracker = GitHubTracker::for_tests("owner/repo");
         // Build a title that will produce a slug longer than 50 chars
-        let long_title = "This is a very long title that should definitely be truncated by our slug";
+        let long_title =
+            "This is a very long title that should definitely be truncated by our slug";
         let result = tracker.branch_name(1, long_title);
         // The number prefix is separate; the slug portion should be <= 50 chars with no trailing hyphen
-        let slug_part = result.strip_prefix("1-").expect("should have number prefix");
-        assert!(slug_part.len() <= 50, "slug is {} chars, expected <= 50", slug_part.len());
-        assert!(!slug_part.ends_with('-'), "slug should not end with a hyphen");
+        let slug_part = result
+            .strip_prefix("1-")
+            .expect("should have number prefix");
+        assert!(
+            slug_part.len() <= 50,
+            "slug is {} chars, expected <= 50",
+            slug_part.len()
+        );
+        assert!(
+            !slug_part.ends_with('-'),
+            "slug should not end with a hyphen"
+        );
     }
 
     #[test]

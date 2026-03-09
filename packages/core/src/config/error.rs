@@ -16,13 +16,7 @@ pub enum ConfigError {
         source: serde_yml::Error,
     },
     #[error("{path}: validation failed:\n{violations}")]
-    Validation {
-        path: PathBuf,
-        violations: String,
-    },
+    Validation { path: PathBuf, violations: String },
     #[error("{path}: {message}")]
-    Io {
-        path: PathBuf,
-        message: String,
-    },
+    Io { path: PathBuf, message: String },
 }
