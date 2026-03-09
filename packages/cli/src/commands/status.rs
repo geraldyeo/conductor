@@ -8,20 +8,12 @@ pub async fn run(
     config_path: Option<&Path>,
     json: bool,
 ) -> Result<(), CliError> {
-    let config = if let Some(p) = config_path {
-        conductor_core::config::load_from_path(p)?
+    let (config, config_file) = if let Some(p) = config_path {
+        let cfg = conductor_core::config::load_from_path(p)?;
+        (cfg, p.to_path_buf())
     } else {
-        conductor_core::config::load()?
+        conductor_core::config::load_with_path()?
     };
-
-    let config_file = config_path
-        .map(|p| p.to_path_buf())
-        .or_else(|| {
-            std::env::current_dir()
-                .ok()
-                .map(|d| d.join("agent-orchestrator.yaml"))
-        })
-        .unwrap_or_else(|| std::path::PathBuf::from("agent-orchestrator.yaml"));
 
     let mut all_sessions = Vec::new();
 

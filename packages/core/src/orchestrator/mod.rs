@@ -267,6 +267,8 @@ impl Orchestrator {
             OrchestratorRequest::Send {
                 session_id,
                 content,
+                // MVP: no_wait and timeout_secs are reserved for post-MVP
+                // busy-detection logic; the send is currently fire-and-forget.
                 no_wait: _,
                 timeout_secs: _,
             } => match self.handle_send(&session_id, &content).await {
@@ -614,10 +616,14 @@ fn error_response(e: OrchestratorError) -> OrchestratorResponse {
 }
 
 /// Deterministic session ID from issue URL.
+/// Normalizes the URL (lowercase, trim trailing slashes) before hashing so
+/// that `…/issues/1` and `…/issues/1/` map to the same session.
 /// Uses FNV-1a 64-bit hash -- stable across Rust versions and platforms.
 pub fn make_session_id(issue_url: &str) -> String {
+    let normalized = issue_url.to_lowercase();
+    let normalized = normalized.trim_end_matches('/');
     let mut hash: u64 = 0xcbf29ce484222325;
-    for byte in issue_url.bytes() {
+    for byte in normalized.bytes() {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }
