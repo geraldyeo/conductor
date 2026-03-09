@@ -64,10 +64,16 @@ pub struct Orchestrator {
     plugins: HashMap<String, ProjectPlugins>,
     graph: Arc<StateGraph>,
     socket_path: PathBuf,
+    /// Signals the run loop to exit. Stored as a field so `handle_request`
+    /// can trigger shutdown via `OrchestratorRequest::Stop`.
+    shutdown_tx: watch::Sender<bool>,
 }
 
 impl Orchestrator {
-    pub async fn new(config: Config) -> Result<Self, OrchestratorError> {
+    /// `config_path` must be the actual file that was loaded — used for the
+    /// FNV-1a hash in `DataPaths::new` so that `ao status` and the daemon
+    /// agree on the storage root.
+    pub async fn new(config: Config, config_path: &Path) -> Result<Self, OrchestratorError> {
         let config = Arc::new(config);
         let mut plugins = HashMap::new();
 
@@ -80,8 +86,7 @@ impl Orchestrator {
             let runtime = create_runtime(runtime_name, Arc::new(CommandRunner))
                 .map_err(|e| OrchestratorError::RuntimeError(e.to_string()))?;
 
-            let config_path = std::env::current_dir()?.join("agent-orchestrator.yaml");
-            let paths = DataPaths::new(&config_path, project_id);
+            let paths = DataPaths::new(config_path, project_id);
             paths.ensure_dirs().await?;
 
             let store = Arc::new(SessionStore::new(paths));
@@ -102,12 +107,14 @@ impl Orchestrator {
 
         let graph = Arc::new(StateGraph::build());
         let socket_path = socket_path();
+        let (shutdown_tx, _) = watch::channel(false);
 
         Ok(Self {
             config,
             plugins,
             graph,
             socket_path,
+            shutdown_tx,
         })
     }
 
@@ -132,12 +139,12 @@ impl Orchestrator {
         let listener = UnixListener::bind(&self.socket_path)?;
         info!(socket = ?self.socket_path, "orchestrator listening");
 
-        let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
         let (ipc_tx, mut ipc_rx) = mpsc::channel::<IpcMsg>(64);
 
         // Spawn IPC listener task
         let ipc_tx2 = ipc_tx.clone();
-        let mut shutdown_rx2 = shutdown_rx.clone();
+        let mut shutdown_rx2 = self.shutdown_tx.subscribe();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -158,12 +165,12 @@ impl Orchestrator {
             }
         });
 
-        // Ctrl-C / SIGTERM handler
-        let shutdown_tx2 = shutdown_tx.clone();
+        // Ctrl-C / SIGTERM handler — also fires on `ao stop` via shutdown_tx
+        let shutdown_tx_ctrlc = self.shutdown_tx.clone();
         tokio::spawn(async move {
             tokio::signal::ctrl_c().await.ok();
             info!("shutdown signal received");
-            let _ = shutdown_tx2.send(true);
+            let _ = shutdown_tx_ctrlc.send(true);
         });
 
         // Main event loop: drain IPC channel between poll ticks
@@ -229,9 +236,12 @@ impl Orchestrator {
                 },
                 Err(e) => error_response(e),
             },
-            OrchestratorRequest::Stop => OrchestratorResponse::Ok {
-                message: "stopping".to_string(),
-            },
+            OrchestratorRequest::Stop => {
+                let _ = self.shutdown_tx.send(true);
+                OrchestratorResponse::Ok {
+                    message: "stopping".to_string(),
+                }
+            }
             OrchestratorRequest::Kill { session_id } => match self.handle_kill(&session_id).await {
                 Ok(()) => OrchestratorResponse::Ok {
                     message: format!("kill scheduled for {session_id}"),
@@ -375,10 +385,28 @@ impl Orchestrator {
         }
 
         // Step 5: Get issue content + render prompt
-        let issue_content = tracker
-            .get_issue_content(issue_url)
-            .await
-            .map_err(|e| OrchestratorError::TrackerError(e.to_string()))?;
+        // On failure, remove the worktree created in step 4 to avoid orphans.
+        let issue_content = match tracker.get_issue_content(issue_url).await {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = p.store.delete_session(&session_id).await;
+                let _ = CommandRunner
+                    .run_in_dir(
+                        &[
+                            "git",
+                            "worktree",
+                            "remove",
+                            "--force",
+                            &worktree_path.to_string_lossy(),
+                        ],
+                        &p.repo_root,
+                        None,
+                        None,
+                    )
+                    .await;
+                return Err(OrchestratorError::TrackerError(e.to_string()));
+            }
+        };
 
         let templates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
         let prompt = if let Ok(engine) = crate::prompt::PromptEngine::new(&templates_dir) {
@@ -422,10 +450,24 @@ impl Orchestrator {
 
         let plan = p.agent.launch_plan(&launch_ctx);
         for step in &plan.steps {
-            p.runtime
-                .execute_step(&session_id, step)
-                .await
-                .map_err(|e| OrchestratorError::RuntimeError(e.to_string()))?;
+            if let Err(e) = p.runtime.execute_step(&session_id, step).await {
+                let _ = p.store.delete_session(&session_id).await;
+                let _ = CommandRunner
+                    .run_in_dir(
+                        &[
+                            "git",
+                            "worktree",
+                            "remove",
+                            "--force",
+                            &worktree_path.to_string_lossy(),
+                        ],
+                        &p.repo_root,
+                        None,
+                        None,
+                    )
+                    .await;
+                return Err(OrchestratorError::RuntimeError(e.to_string()));
+            }
         }
 
         // Update status to Working

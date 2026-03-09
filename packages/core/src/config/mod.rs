@@ -10,12 +10,20 @@ pub use schema::{
 pub use secrets::load_secrets;
 
 use garde::Validate;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Discover config path, load, validate. Primary entry point.
 pub fn load() -> Result<Config, ConfigError> {
     let path = discovery::discover_config_path()?;
     load_from_path(&path)
+}
+
+/// Like `load()` but also returns the discovered config file path.
+/// Use this when the path is needed downstream (e.g. for `DataPaths` hashing).
+pub fn load_with_path() -> Result<(Config, PathBuf), ConfigError> {
+    let path = discovery::discover_config_path()?;
+    let config = load_from_path(&path)?;
+    Ok((config, path))
 }
 
 /// Load from a specific path (for tests and `ao init --check`).

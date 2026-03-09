@@ -79,6 +79,10 @@ impl<'a> PollTick<'a> {
             activity_state,
             pr,
             tracker_state,
+            // MVP: kill is applied directly by handle_kill (sets Killed in
+            // SessionStore); poll-driven kill (graph edges 28-30) is reserved
+            // for post-MVP. These fields are structurally present so the graph
+            // evaluator compiles, but they never fire from this code path.
             budget_exceeded: false,
             manual_kill: false,
         }

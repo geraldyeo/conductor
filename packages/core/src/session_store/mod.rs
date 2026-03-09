@@ -351,12 +351,15 @@ impl SessionStore {
     /// Delete a session directory recursively.
     pub async fn delete_session(&self, session_id: &str) -> Result<(), StoreError> {
         let session_dir = self.paths.session_dir(session_id);
-        if !session_dir.exists() {
-            return Err(StoreError::NotFound(session_id.to_string()));
+        // Attempt removal directly; map NotFound to StoreError::NotFound to
+        // avoid a TOCTOU race between an exists() check and remove_dir_all().
+        match fs::remove_dir_all(&session_dir).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(StoreError::NotFound(session_id.to_string()))
+            }
+            Err(e) => Err(StoreError::Io(e)),
         }
-        fs::remove_dir_all(&session_dir)
-            .await
-            .map_err(StoreError::Io)
     }
 
     /// Return a reference to the underlying DataPaths.

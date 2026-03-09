@@ -94,6 +94,12 @@ pub async fn write_message<T: Serialize, W: AsyncWriteExt + Unpin>(
 ) -> std::io::Result<()> {
     let json = serde_json::to_vec(value)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    if json.len() > MAX_MESSAGE_SIZE {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("IPC message too large: {} bytes", json.len()),
+        ));
+    }
     let len = json.len() as u32;
     writer.write_all(&len.to_be_bytes()).await?;
     writer.write_all(&json).await?;
