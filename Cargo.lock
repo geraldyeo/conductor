@@ -262,6 +262,7 @@ dependencies = [
  "conductor-core",
  "dirs",
  "serde_json",
+ "shellexpand",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
