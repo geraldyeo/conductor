@@ -100,7 +100,7 @@ impl Runtime for TmuxRuntime {
                 let out = self
                     .runner
                     .run(
-                        &["tmux", "send-keys", "-t", &name, content, "Enter"],
+                        &["tmux", "send-keys", "-t", &name, "--", content, "Enter"],
                         None,
                         None,
                     )
@@ -116,7 +116,7 @@ impl Runtime for TmuxRuntime {
                 let out = self
                     .runner
                     .run(
-                        &["tmux", "set-buffer", "-t", &name, content],
+                        &["tmux", "set-buffer", "--", content],
                         None,
                         None,
                     )

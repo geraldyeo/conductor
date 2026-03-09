@@ -78,9 +78,7 @@ impl DataPaths {
 }
 
 fn dirs_next_home() -> PathBuf {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp"))
+    dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"))
 }
 
 #[cfg(test)]

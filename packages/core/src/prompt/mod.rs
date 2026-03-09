@@ -167,8 +167,8 @@ pub fn sanitize_issue_content(
         .collect();
 
     SanitizedIssue {
-        title: issue.title.clone(),
-        body: truncate_str(&issue.body, max_chars),
+        title: escape_fence_delimiters(&issue.title),
+        body: escape_fence_delimiters(&truncate_str(&issue.body, max_chars)),
         comments: sanitized_comments,
         state: issue.state.clone(),
         labels: issue.labels.clone(),
@@ -187,6 +187,7 @@ fn truncate_str(s: &str, max_chars: usize) -> String {
 
 fn escape_fence_delimiters(s: &str) -> String {
     s.replace("<comment ", "<comment\u{00A0}")
+        .replace("</comment>", "<\u{200B}/comment>")
 }
 
 fn prevent_symlink_escape(base: &Path, target: &Path) -> Result<(), PromptError> {
