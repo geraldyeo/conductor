@@ -20,14 +20,15 @@ impl DataPaths {
 
     /// Compute root from config path and project ID.
     /// Format: ~/.agent-orchestrator/{hash-12chars}-{project_id}/
+    /// Uses FNV-1a 64-bit hash — stable across Rust versions and platforms.
     pub fn new(config_path: &Path, project_id: &str) -> Self {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        // Simple deterministic hash for MVP (post-MVP: sha256)
-        let mut hasher = DefaultHasher::new();
-        config_path.hash(&mut hasher);
-        let hash = format!("{:016x}", hasher.finish());
-        let dir_name = format!("{}-{}", &hash[..12], project_id);
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for byte in config_path.to_string_lossy().bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        let hash_str = format!("{:016x}", hash);
+        let dir_name = format!("{}-{}", &hash_str[..12], project_id);
         let root = dirs_next_home().join(".agent-orchestrator").join(dir_name);
         Self { root }
     }

@@ -1,6 +1,6 @@
 use crate::agent::Agent;
 use crate::runtime::Runtime;
-use crate::utils::{CommandRunner, DataPaths};
+use crate::utils::{CommandRunner, DataPaths, DataPathsError};
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
@@ -17,6 +17,8 @@ pub enum OrchestratorError {
     WorkspaceError(String),
     #[error("runtime error: {0}")]
     RuntimeError(String),
+    #[error("data paths error: {0}")]
+    DataPaths(#[from] DataPathsError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -69,11 +71,7 @@ impl Orchestrator {
         tracing::info!(session_id = %session_id, issue_url = %issue_url, "spawn: step 1 — validate issue (skipped at MVP)");
 
         // Step 2: Create session record
-        self.config
-            .data_paths
-            .ensure_dirs()
-            .await
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        self.config.data_paths.ensure_dirs().await?;
         let session_dir = self.config.data_paths.session_dir(&session_id);
         tokio::fs::create_dir(&session_dir).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::AlreadyExists {

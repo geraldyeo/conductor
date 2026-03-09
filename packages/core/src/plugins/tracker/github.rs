@@ -53,6 +53,7 @@ impl GitHubTracker {
 fn parse_issue_number(url: &str) -> Result<u64, TrackerError> {
     url.split('/')
         .next_back()
+        .and_then(|s| s.split('#').next()) // strip URL fragments like #issuecomment-123
         .and_then(|s| s.parse::<u64>().ok())
         .ok_or_else(|| {
             TrackerError::ParseError(format!("cannot parse issue number from URL: {url}"))

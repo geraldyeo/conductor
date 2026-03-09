@@ -76,6 +76,7 @@ fn derive_branch_name(issue_url: &str) -> String {
     let number = issue_url
         .split('/')
         .next_back()
+        .and_then(|s| s.split('#').next()) // strip URL fragments like #issuecomment-123
         .and_then(|s| s.parse::<u64>().ok())
         .map(|n| n.to_string())
         .unwrap_or_else(|| "unknown".to_string());

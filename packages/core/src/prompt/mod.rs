@@ -151,12 +151,9 @@ pub fn sanitize_issue_content(
     max_comments: usize,
     max_chars: usize,
 ) -> SanitizedIssue {
-    // Take last max_comments comments (most recent)
-    let recent: Vec<_> = issue.comments.iter().rev().take(max_comments).collect();
-    // Reverse back to chronological
-    let chronological: Vec<_> = recent.into_iter().rev().collect();
-
-    let sanitized_comments: Vec<SanitizedComment> = chronological
+    // Take last max_comments comments (most recent), already in chronological order
+    let start = issue.comments.len().saturating_sub(max_comments);
+    let sanitized_comments: Vec<SanitizedComment> = issue.comments[start..]
         .iter()
         .map(|c| {
             let body = truncate_str(&c.body, max_chars);
@@ -193,26 +190,38 @@ fn escape_fence_delimiters(s: &str) -> String {
 }
 
 fn prevent_symlink_escape(base: &Path, target: &Path) -> Result<(), PromptError> {
-    // If neither base nor target exist yet, we can't do a meaningful check.
-    // Only check when both can be resolved.
-    let canonical_base = match base.canonicalize() {
-        Ok(p) => p,
-        Err(_) => return Ok(()), // base doesn't exist, skip check
-    };
+    // Fail closed: if we cannot canonicalize the base, reject rather than skip.
+    let canonical_base = base.canonicalize().map_err(|e| {
+        PromptError::SymlinkEscape(format!(
+            "cannot resolve base {}: {e}",
+            base.display()
+        ))
+    })?;
     let canonical_target = if target.exists() {
-        match target.canonicalize() {
-            Ok(p) => p,
-            Err(_) => return Ok(()),
-        }
+        target.canonicalize().map_err(|e| {
+            PromptError::SymlinkEscape(format!(
+                "cannot resolve target {}: {e}",
+                target.display()
+            ))
+        })?
     } else {
-        // Target doesn't exist — check that its nearest existing ancestor is under base
+        // Target doesn't exist — walk up to the nearest existing ancestor.
         let mut ancestor = target.to_path_buf();
         loop {
             if ancestor.exists() {
-                break ancestor.canonicalize().unwrap_or(ancestor);
+                break ancestor.canonicalize().map_err(|e| {
+                    PromptError::SymlinkEscape(format!(
+                        "cannot resolve ancestor {}: {e}",
+                        ancestor.display()
+                    ))
+                })?;
             }
             if !ancestor.pop() {
-                return Ok(()); // can't resolve, skip check
+                // Reached filesystem root without finding an existing path — reject.
+                return Err(PromptError::SymlinkEscape(format!(
+                    "cannot resolve any ancestor of {}",
+                    target.display()
+                )));
             }
         }
     };
