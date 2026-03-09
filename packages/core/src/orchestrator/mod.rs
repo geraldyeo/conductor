@@ -394,25 +394,11 @@ impl Orchestrator {
         }
 
         // Step 5: Get issue content + render prompt
-        // On failure, remove the worktree created in step 4 to avoid orphans.
+        // On failure, unwind the worktree created in step 4 to avoid orphans.
         let issue_content = match tracker.get_issue_content(issue_url).await {
             Ok(c) => c,
             Err(e) => {
-                let _ = p.store.delete_session(&session_id).await;
-                let _ = CommandRunner
-                    .run_in_dir(
-                        &[
-                            "git",
-                            "worktree",
-                            "remove",
-                            "--force",
-                            &worktree_path.to_string_lossy(),
-                        ],
-                        &p.repo_root,
-                        None,
-                        None,
-                    )
-                    .await;
+                self.unwind_spawn(p, &session_id, &worktree_path).await;
                 return Err(OrchestratorError::TrackerError(e.to_string()));
             }
         };
@@ -460,21 +446,7 @@ impl Orchestrator {
         let plan = p.agent.launch_plan(&launch_ctx);
         for step in &plan.steps {
             if let Err(e) = p.runtime.execute_step(&session_id, step).await {
-                let _ = p.store.delete_session(&session_id).await;
-                let _ = CommandRunner
-                    .run_in_dir(
-                        &[
-                            "git",
-                            "worktree",
-                            "remove",
-                            "--force",
-                            &worktree_path.to_string_lossy(),
-                        ],
-                        &p.repo_root,
-                        None,
-                        None,
-                    )
-                    .await;
+                self.unwind_spawn(p, &session_id, &worktree_path).await;
                 return Err(OrchestratorError::RuntimeError(e.to_string()));
             }
         }
@@ -486,6 +458,26 @@ impl Orchestrator {
         p.store.write_metadata(&updated).await?;
 
         Ok((session_id, branch, worktree_path))
+    }
+
+    /// Remove a partially-created session record and its worktree.
+    /// Called on error after step 4 (worktree creation) succeeds.
+    async fn unwind_spawn(&self, p: &ProjectPlugins, session_id: &str, worktree_path: &Path) {
+        let _ = p.store.delete_session(session_id).await;
+        let _ = CommandRunner
+            .run_in_dir(
+                &[
+                    "git",
+                    "worktree",
+                    "remove",
+                    "--force",
+                    &worktree_path.to_string_lossy(),
+                ],
+                &p.repo_root,
+                None,
+                None,
+            )
+            .await;
     }
 
     async fn handle_kill(&self, session_id: &str) -> Result<(), OrchestratorError> {
