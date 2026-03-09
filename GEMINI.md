@@ -10,10 +10,12 @@ Inspired by ComposioHQ's agent-orchestrator (plugin architecture, reaction engin
 
 ## Status
 
-This project is in the **design/documentation phase**. No source code exists yet. Key design documents live in `docs/`:
+**Walking skeleton complete.** The design/documentation phase is done (8 ADRs accepted). The project is in the **implementation phase** — `ao spawn <github-issue-url>` is wired end-to-end. Full MVP (remaining commands, poll cycle, 16-state lifecycle) is in progress.
+
+Key design documents live in `docs/`:
 
 - `docs/prds/` — Product requirements documents and reviews
-- `docs/adrs/` — Architecture decision records (7 foundational ADRs)
+- `docs/adrs/` — Architecture decision records (8 ADRs accepted)
 - `docs/plans/` — Design documents and implementation plans
 
 ## Document Conventions
@@ -22,7 +24,7 @@ See `AGENTS.md` for shared conventions (PRD/ADR naming, review file naming, ADR 
 
 ## Architecture
 
-Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language and toolchain TBD (see ADRs).
+Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language: **Rust** (ADR-0002). Single Cargo workspace covering `packages/cli` and `packages/core`.
 
 ### Eight Slot Plugin System
 
@@ -76,8 +78,10 @@ Strictly follow the `AGENTS.md` commit convention:
 - When reviewing docs, follow the `AGENTS.md` naming pattern: `docs/{folder}/{NNNN}-{title}-review-{round}-gemini.md`.
 - Categorize by severity: Critical, High, Medium, Low.
 
-### Coding Standards (Future)
+### Coding Standards
 
-- Once ADR-0007 (Implementation Language) is finalized, adhere strictly to the chosen language's idioms and safety rules.
+- Language: **Rust** (ADR-0002). Use `tokio` for async, `clap` for CLI, `serde`/`serde_yml` for config, `tera` for templates, `thiserror` for errors.
+- Follow Rust idioms: exhaustive matching, explicit error propagation (`?`), `async-trait` for object-safe async traits.
+- Build/test: `cargo build --workspace`, `cargo nextest run`, `cargo clippy --workspace -- -D warnings`.
 - Maintain isolation by using `git worktree` for manual testing if required.
-- Ensure all logic is consolidated into clean abstractions per ADR-0001 (Plugin Architecture).
+- Ensure all logic is consolidated into clean abstractions per ADR-0004 (Plugin System).
