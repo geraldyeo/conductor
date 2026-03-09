@@ -49,39 +49,91 @@ Scalable orchestration layer for AI coding agents. Conductor manages parallel, i
 | Terminal | `iterm2` | web (planned) |
 | Lifecycle | Core (not pluggable) | — |
 
-## Getting started
+## Quick start
 
 ### Prerequisites
 
+- [Rust](https://rustup.rs) stable toolchain
+- [`gh` CLI](https://cli.github.com) authenticated (`gh auth login`)
+- `tmux`
+
 ```bash
-make setup   # verifies and installs: rustup, gh CLI, tmux, gemini, codex
+make setup   # verifies and installs prerequisites
+cargo install --path packages/cli
 ```
 
-### Build
+### 1. Create a config file
+
+Run inside your project's git repo:
+
+```bash
+ao init --auto
+```
+
+This generates `agent-orchestrator.yaml` with your repo and path inferred from git. Open it and verify the values, then add any customisation:
+
+```yaml
+port: 3000
+maxConcurrentAgents: 10
+
+defaults:
+  runtime: tmux
+  agent: claude-code
+  workspace: worktree
+
+projects:
+  myrepo:
+    repo: owner/myrepo
+    path: /Users/you/code/myrepo
+    defaultBranch: main
+    tracker:
+      plugin: github
+```
+
+### 2. Start the orchestrator
+
+```bash
+ao start
+```
+
+Runs in the foreground. Keep this terminal open, or run it in a tmux session of its own.
+
+### 3. Spawn an agent
+
+In a second terminal:
+
+```bash
+ao spawn https://github.com/owner/repo/issues/42
+```
+
+```
+Session spawned: myrepo-42-1
+  Branch: issue-42-fix-the-thing
+  Workspace: ~/.agent-orchestrator/.../worktrees/myrepo-42-1
+  Attach: tmux attach -t myrepo-42-1
+```
+
+The orchestrator creates an isolated git worktree, renders a prompt from the issue, and launches the agent in tmux.
+
+### 4. Monitor and interact
+
+```bash
+ao status                                     # show all sessions
+tmux attach -t myrepo-42-1                    # watch the agent live (Ctrl-B D to detach)
+ao send myrepo-42-1 "also handle empty input" # send a message
+```
+
+### 5. Clean up
+
+```bash
+ao session cleanup    # remove sessions where the issue/PR is closed
+ao stop               # shut down the orchestrator
+```
+
+### Build and test
 
 ```bash
 cargo build --workspace
-```
-
-### Run
-
-```bash
-# Start the orchestrator daemon
-ao start
-
-# Spawn an agent session for a GitHub issue
-ao spawn https://github.com/owner/repo/issues/42
-
-# Check session status
-ao status
-
-# Stop the daemon
-ao stop
-```
-
-### Test
-
-```bash
 cargo test --workspace          # all tests
 cargo test -p conductor-core    # core only
 cargo clippy --workspace -- -D warnings
