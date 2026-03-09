@@ -4,7 +4,7 @@ Shared conventions for AI agents working in this repository. This file is agent-
 
 ## Project
 
-**Conductor** is an orchestration layer for AI coding agents. It is in the design/documentation phase — no source code exists yet.
+**Conductor** is an orchestration layer for AI coding agents. The design/documentation phase is complete (8 ADRs accepted). The project is in the **implementation phase** — the walking skeleton (`ao spawn` end-to-end) is working. See `CLAUDE.md` for development workflow.
 
 ## Repository Structure
 

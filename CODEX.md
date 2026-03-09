@@ -10,10 +10,12 @@ Inspired by ComposioHQ's agent-orchestrator (plugin architecture, reaction engin
 
 ## Status
 
-This project is in the **design/documentation phase**. No source code exists yet. Key design documents live in `docs/`:
+**Walking skeleton complete.** The design/documentation phase is done (8 ADRs accepted). The project is in the **implementation phase** — `ao spawn <github-issue-url>` is wired end-to-end. Full MVP (remaining commands, poll cycle, 16-state lifecycle) is in progress.
+
+Key design documents live in `docs/`:
 
 - `docs/prds/` -- Product requirements documents and reviews
-- `docs/adrs/` -- Architecture decision records (7 foundational ADRs)
+- `docs/adrs/` -- Architecture decision records (8 ADRs accepted)
 - `docs/plans/` -- Design documents and implementation plans
 
 ## Document Conventions
@@ -22,7 +24,7 @@ See `AGENTS.md` for shared conventions (PRD/ADR naming, review file naming, ADR 
 
 ## Architecture
 
-Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language and toolchain TBD (see ADRs).
+Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language: **Rust** (ADR-0002). Single Cargo workspace covering `packages/cli` and `packages/core`.
 
 ### Eight Slot Plugin System
 
@@ -80,8 +82,10 @@ Strictly follow `AGENTS.md` commit conventions:
 - Keep subject imperative, lowercase, and <= 50 characters.
 - Include trailer: `Co-Authored-By: Codex <noreply@openai.com>`.
 
-### Coding Standards (Future)
+### Coding Standards
 
-- Once ADR-0007 (Implementation Language) is accepted, follow that language's ecosystem best practices.
-- Preserve plugin-boundary abstractions from ADR-0001.
-- Maintain workspace isolation assumptions from ADR-0002 in all runtime and tooling changes.
+- Language: **Rust** (ADR-0002). Use `tokio` for async, `clap` for CLI, `serde`/`serde_yml` for config, `tera` for templates, `thiserror` for errors.
+- Follow Rust idioms: exhaustive matching, explicit error propagation (`?`), `async-trait` for object-safe async traits.
+- Build/test: `cargo build --workspace`, `cargo nextest run`, `cargo clippy --workspace -- -D warnings`.
+- Preserve plugin-boundary abstractions from ADR-0004 (Plugin System).
+- Maintain workspace isolation assumptions (git worktrees, symlink escape prevention) from ADR-0005.
