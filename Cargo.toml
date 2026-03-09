@@ -17,3 +17,5 @@ tera = "1"
 strum = { version = "0.26", features = ["derive"] }
 tempfile = "3"
 dirs = "5"
+garde = { version = "0.18", features = ["derive", "full"] }
+shellexpand = "3"
