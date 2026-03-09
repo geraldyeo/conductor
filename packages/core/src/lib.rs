@@ -7,7 +7,7 @@ pub mod orchestrator;
 pub mod plugins;
 pub mod prompt;
 pub mod runtime;
-pub mod store;
+pub mod session_store;
 pub mod tracker;
 pub mod utils;
 pub mod workspace;
