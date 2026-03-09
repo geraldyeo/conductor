@@ -1,3 +1,4 @@
+mod ipc;
 mod spawn;
 
 use clap::{Parser, Subcommand};
