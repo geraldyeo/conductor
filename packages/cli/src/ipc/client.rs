@@ -16,9 +16,7 @@ pub enum IpcError {
 
 /// Send a request to the running orchestrator and return the response.
 /// Returns `IpcError::NotRunning` if the socket doesn't exist or connection is refused.
-pub async fn send_request(
-    request: &OrchestratorRequest,
-) -> Result<OrchestratorResponse, IpcError> {
+pub async fn send_request(request: &OrchestratorRequest) -> Result<OrchestratorResponse, IpcError> {
     let path = socket_path();
 
     if !path.exists() {
