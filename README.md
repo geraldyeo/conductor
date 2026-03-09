@@ -118,9 +118,9 @@ The orchestrator creates an isolated git worktree, renders a prompt from the iss
 ### 4. Monitor and interact
 
 ```bash
-ao status                                           # show all sessions
-tmux attach -t myrepo-42-1                         # watch the agent live (Ctrl-B D to detach)
-ao send myrepo-42-1 "also handle empty input"      # send a message
+ao status                                     # show all sessions
+tmux attach -t myrepo-42-1                    # watch the agent live (Ctrl-B D to detach)
+ao send myrepo-42-1 "also handle empty input" # send a message
 ```
 
 ### 5. Clean up
