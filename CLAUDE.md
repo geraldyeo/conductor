@@ -10,7 +10,7 @@ Inspired by ComposioHQ's agent-orchestrator (plugin architecture, reaction engin
 
 ## Status
 
-The design/documentation phase is complete (8 ADRs accepted). The project is entering the **implementation phase**. See [Development Workflows](#development-workflows) below for how to contribute code. Key design documents live in `docs/`:
+Design phase complete (8 ADRs accepted). **Walking skeleton merged** — `ao spawn <github-issue-url>` is wired end-to-end across all architectural layers. Full MVP (remaining 9 commands, poll cycle, 16-state lifecycle) is in progress. See [Development Workflows](#development-workflows) below for how to contribute code. Key design documents live in `docs/`:
 
 - `docs/prds/` — Product requirements documents and reviews
 - `docs/adrs/` — Architecture decision records (8 ADRs accepted)
@@ -22,7 +22,7 @@ See `AGENTS.md` for shared conventions (PRD/ADR naming, review file naming, ADR 
 
 ## Architecture
 
-Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language: **Rust** (ADR-0002). Toolchain TBD.
+Monorepo with packages: `cli`, `core`, `dashboard`, `mobile`. Language: **Rust** (ADR-0002). Active packages: `packages/cli` (binary `ao`) and `packages/core` (library `conductor-core`).
 
 ### Eight Slot Plugin System
 
@@ -74,9 +74,11 @@ This project uses multi-model review via Claude Code slash commands that dispatc
 
 Both commands are defined in `~/.claude/commands/` and require `gemini` and `codex` CLIs to be installed.
 
+**Gemini Code Assist** runs automatically on PRs. To trigger a manual re-review after pushing fixes, post a comment containing `/gemini review`. Old comment threads persist across review rounds — filter by comment ID to identify new findings. Address Critical/High findings before merging; reply with rationale to Mediums that reflect intentional design decisions.
+
 ## Tech Stack
 
-Language: **Rust** (ADR-0002). Framework choices TBD. Decided so far: tmux (runtime), `gh` CLI + GitHub GraphQL (SCM), GitHub Actions (CI), gitleaks (security).
+Language: **Rust** (ADR-0002). Runtime: tmux. SCM: `gh` CLI + GitHub GraphQL. CI: GitHub Actions. Security scanning: gitleaks. Key crates: `tokio`, `clap`, `serde`/`serde_json`, `tera`, `thiserror`, `async-trait`, `strum`, `dirs`.
 
 ## Development Workflows
 
@@ -99,13 +101,13 @@ Single Cargo workspace at repo root covers `packages/cli` and `packages/core`.
 | Command | Purpose |
 |---|---|
 | `cargo build --workspace` | Build all packages |
-| `cargo nextest run` | Run all tests (preferred over `cargo test`) |
-| `cargo nextest run -p core` | Run tests for a specific package |
+| `cargo test --workspace` | Run all tests |
+| `cargo test -p conductor-core` | Run tests for core package |
 | `cargo clippy --workspace -- -D warnings` | Lint (warnings are errors) |
 | `cargo fmt` | Format all code |
 | `cargo fmt --check` | Check formatting (CI) |
 
-`cargo-nextest` is preferred for better output, parallelism, and retry support. Dashboard and mobile have their own toolchains (TBD) and are not part of the Cargo workspace.
+Dashboard and mobile have their own toolchains (TBD) and are not part of the Cargo workspace.
 
 ### Feature Development Flow
 
