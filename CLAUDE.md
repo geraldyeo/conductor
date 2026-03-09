@@ -10,7 +10,7 @@ Inspired by ComposioHQ's agent-orchestrator (plugin architecture, reaction engin
 
 ## Status
 
-Design phase complete (8 ADRs accepted). **Walking skeleton merged** — `ao spawn <github-issue-url>` is wired end-to-end across all architectural layers. Full MVP (remaining 9 commands, poll cycle, 16-state lifecycle) is in progress. See [Development Workflows](#development-workflows) below for how to contribute code. Key design documents live in `docs/`:
+Design phase complete (8 ADRs accepted). **Full MVP merged** — all 10 CLI commands, the poll-driven 16-state lifecycle engine, YAML config system, IPC protocol, and orchestrator daemon are implemented. See [Development Workflows](#development-workflows) below for how to contribute code. Key design documents live in `docs/`:
 
 - `docs/prds/` — Product requirements documents and reviews
 - `docs/adrs/` — Architecture decision records (8 ADRs accepted)

@@ -4,21 +4,37 @@ Scalable orchestration layer for AI coding agents. Conductor manages parallel, i
 
 ## Status
 
-**Walking skeleton complete.** `ao spawn <github-issue-url>` is wired end-to-end: CLI → IPC → Orchestrator → Workspace → PromptEngine → Agent → Runtime → SessionStore. Full MVP (remaining commands, poll cycle, 16-state lifecycle) is in progress.
+**Full MVP complete.** All 10 CLI commands, the poll-driven 16-state lifecycle engine, and the orchestrator daemon are implemented and merged. The orchestrator runs as a background process (`ao start`), manages agent sessions end-to-end, and exposes a Unix domain socket IPC interface for all CLI commands.
 
 ## How it works
 
-1. `ao spawn <github-issue-url>` creates an isolated git worktree for the issue
-2. A tmux session is launched running the configured AI agent (default: Claude Code) with a rendered prompt
-3. The orchestrator monitors the session, tracks state, and persists metadata to `~/.agent-orchestrator/`
-4. On completion the worktree can be cleaned up and the session archived
+1. `ao start` launches the orchestrator daemon (IPC socket + 30s poll loop)
+2. `ao spawn <github-issue-url>` creates an isolated git worktree, renders a prompt, and launches the configured AI agent in a tmux session
+3. The orchestrator polls each session, drives the 16-state lifecycle (Spawning → Working → PrOpen → … → Merged/Done), and persists metadata to `~/.agent-orchestrator/`
+4. `ao status` shows all active sessions; `ao session kill/cleanup` manage session lifecycle
+5. `ao stop` gracefully shuts down the daemon
+
+## CLI commands
+
+| Command | Description |
+|---------|-------------|
+| `ao init` | Initialise `agent-orchestrator.yaml` in the current directory |
+| `ao start` | Start the orchestrator daemon |
+| `ao stop` | Stop the orchestrator daemon |
+| `ao status` | Show all session statuses |
+| `ao spawn <issue-url>` | Spawn an agent session for a GitHub issue |
+| `ao batch-spawn <urls…>` | Spawn sessions for multiple issues |
+| `ao send <session-id> <msg>` | Send a message to a running agent session |
+| `ao session ls` | List sessions |
+| `ao session kill <id>` | Kill a session |
+| `ao session cleanup` | Clean up sessions in terminal tracker state |
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `packages/core` | Core library — orchestrator, plugin traits, session store, prompt engine, utils |
-| `packages/cli` | `ao` CLI binary — `ao spawn` and supporting commands |
+| `packages/core` | Core library — orchestrator daemon, plugin traits, lifecycle engine, session store, prompt engine, IPC, config |
+| `packages/cli` | `ao` CLI binary — all 10 MVP commands |
 
 ## Plugin slots
 
@@ -50,13 +66,17 @@ cargo build --workspace
 ### Run
 
 ```bash
-cargo run -p cli -- spawn https://github.com/owner/repo/issues/42
-```
+# Start the orchestrator daemon
+ao start
 
-Or after installing:
-
-```bash
+# Spawn an agent session for a GitHub issue
 ao spawn https://github.com/owner/repo/issues/42
+
+# Check session status
+ao status
+
+# Stop the daemon
+ao stop
 ```
 
 ### Test
