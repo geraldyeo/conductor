@@ -27,7 +27,11 @@ Scalable orchestration layer for AI coding agents. Conductor manages parallel, i
 | Agent | `claude-code` | codex, aider, opencode, gemini, openclaw |
 | Runtime | `tmux` | process, Docker (planned) |
 | Workspace | `worktree` | clone |
-| Tracker | `github` | linear |
+| Tracker | `github` | linear, Jira (planned) |
+| SCM | `github` | GitLab (planned) |
+| Notifier | `desktop` | slack, composio, webhook |
+| Terminal | `iterm2` | web (planned) |
+| Lifecycle | Core (not pluggable) | — |
 
 ## Getting started
 
