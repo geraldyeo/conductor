@@ -309,6 +309,60 @@ impl SessionStore {
 
         Ok(entries)
     }
+
+    /// List all sessions by reading every metadata file under sessions_dir.
+    /// Sessions with unreadable/malformed metadata are silently skipped.
+    pub async fn list(&self) -> Result<Vec<SessionMetadata>, StoreError> {
+        let sessions_dir = self.paths.sessions_dir();
+        let mut sessions = Vec::new();
+
+        let mut read_dir = match fs::read_dir(&sessions_dir).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+            Err(e) => return Err(StoreError::Io(e)),
+        };
+
+        while let Some(entry) = read_dir.next_entry().await? {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let session_id = match path.file_name().and_then(|n| n.to_str()) {
+                Some(id) => id.to_string(),
+                None => continue,
+            };
+            match self.read_metadata(&session_id).await {
+                Ok(meta) => sessions.push(meta),
+                Err(e) => {
+                    tracing::warn!(session_id = %session_id, error = %e, "skipping unreadable session");
+                }
+            }
+        }
+
+        Ok(sessions)
+    }
+
+    /// List only non-terminal sessions.
+    pub async fn list_active(&self) -> Result<Vec<SessionMetadata>, StoreError> {
+        let all = self.list().await?;
+        Ok(all.into_iter().filter(|s| !s.status.is_terminal()).collect())
+    }
+
+    /// Delete a session directory recursively.
+    pub async fn delete_session(&self, session_id: &str) -> Result<(), StoreError> {
+        let session_dir = self.paths.session_dir(session_id);
+        if !session_dir.exists() {
+            return Err(StoreError::NotFound(session_id.to_string()));
+        }
+        fs::remove_dir_all(&session_dir)
+            .await
+            .map_err(StoreError::Io)
+    }
+
+    /// Return a reference to the underlying DataPaths.
+    pub fn paths_ref(&self) -> &DataPaths {
+        &self.paths
+    }
 }
 
 #[cfg(test)]
@@ -479,5 +533,97 @@ mod tests {
             "malformed trailing line should be skipped"
         );
         assert_eq!(read_back[0].event, "spawned");
+    }
+
+    #[tokio::test]
+    async fn test_list_returns_all_sessions() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+
+        let m1 = make_metadata("sess-1");
+        let m2 = make_metadata("sess-2");
+        store.create_session(&m1).await.unwrap();
+        store.create_session(&m2).await.unwrap();
+
+        let sessions = store.list().await.unwrap();
+        assert_eq!(sessions.len(), 2);
+        let ids: Vec<_> = sessions.iter().map(|s| s.id.clone()).collect();
+        assert!(ids.contains(&"sess-1".to_string()));
+        assert!(ids.contains(&"sess-2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_list_skips_malformed_metadata() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+
+        let m = make_metadata("good-sess");
+        store.create_session(&m).await.unwrap();
+
+        // Create a session dir with no metadata file (simulates partial write)
+        let bad_dir = store.paths.session_dir("bad-sess");
+        std::fs::create_dir(&bad_dir).unwrap();
+
+        let sessions = store.list().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, "good-sess");
+    }
+
+    #[tokio::test]
+    async fn test_list_empty_store() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+        let sessions = store.list().await.unwrap();
+        assert!(sessions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_active_filters_terminal() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+
+        let mut m1 = make_metadata("active-sess");
+        m1.status = SessionStatus::Working;
+        let mut m2 = make_metadata("dead-sess");
+        m2.status = SessionStatus::Killed;
+
+        store.create_session(&m1).await.unwrap();
+        store.create_session(&m2).await.unwrap();
+
+        let active = store.list_active().await.unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, "active-sess");
+    }
+
+    #[tokio::test]
+    async fn test_delete_session() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+        let m = make_metadata("to-delete");
+        store.create_session(&m).await.unwrap();
+
+        store.delete_session("to-delete").await.unwrap();
+        assert!(matches!(
+            store.read_metadata("to-delete").await,
+            Err(StoreError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_not_found() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+        assert!(matches!(
+            store.delete_session("nonexistent").await,
+            Err(StoreError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_paths_ref() {
+        let dir = tempdir().unwrap();
+        let store = make_store(dir.path());
+        let paths = store.paths_ref();
+        assert!(paths.sessions_dir().exists());
     }
 }
