@@ -21,6 +21,20 @@ pub enum SessionStatus {
     Merged,
 }
 
+impl SessionStatus {
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            SessionStatus::Killed
+                | SessionStatus::Terminated
+                | SessionStatus::Done
+                | SessionStatus::Cleanup
+                | SessionStatus::Errored
+                | SessionStatus::Merged
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub enum TerminationReason {
@@ -70,6 +84,19 @@ mod tests {
         for s in &statuses {
             SessionStatus::from_str(s).unwrap_or_else(|_| panic!("failed to parse: {s}"));
         }
+    }
+
+    #[test]
+    fn test_is_terminal() {
+        assert!(SessionStatus::Killed.is_terminal());
+        assert!(SessionStatus::Terminated.is_terminal());
+        assert!(SessionStatus::Done.is_terminal());
+        assert!(SessionStatus::Cleanup.is_terminal());
+        assert!(SessionStatus::Errored.is_terminal());
+        assert!(SessionStatus::Merged.is_terminal());
+        assert!(!SessionStatus::Working.is_terminal());
+        assert!(!SessionStatus::Spawning.is_terminal());
+        assert!(!SessionStatus::PrOpen.is_terminal());
     }
 
     #[test]

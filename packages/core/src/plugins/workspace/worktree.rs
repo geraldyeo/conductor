@@ -95,14 +95,7 @@ impl Workspace for WorktreeWorkspace {
         let out = self
             .runner
             .run_in_dir(
-                &[
-                    "git",
-                    "worktree",
-                    "add",
-                    &worktree_path_str,
-                    "-b",
-                    branch,
-                ],
+                &["git", "worktree", "add", &worktree_path_str, "-b", branch],
                 &self.repo_root,
                 None,
                 None,
@@ -388,12 +381,7 @@ mod tests {
             .await
             .unwrap();
         runner
-            .run_in_dir(
-                &["git", "config", "user.name", "Test"],
-                &path,
-                None,
-                None,
-            )
+            .run_in_dir(&["git", "config", "user.name", "Test"], &path, None, None)
             .await
             .unwrap();
         runner
@@ -456,7 +444,9 @@ mod tests {
         let paths = DataPaths::from_root(data_dir.path().to_path_buf());
 
         // Ensure worktrees dir exists for canonicalization
-        tokio::fs::create_dir_all(paths.worktrees_dir()).await.unwrap();
+        tokio::fs::create_dir_all(paths.worktrees_dir())
+            .await
+            .unwrap();
 
         let worktrees_dir = paths.worktrees_dir();
         // Construct a path that escapes the worktrees dir via ".."
@@ -472,7 +462,11 @@ mod tests {
         // A valid path should pass
         let valid_path = worktrees_dir.join("valid-session");
         let result = prevent_symlink_escape(&worktrees_dir, &valid_path);
-        assert!(result.is_ok(), "Expected Ok for valid path, got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Expected Ok for valid path, got: {:?}",
+            result
+        );
 
         drop(repo_root); // keep repo alive
     }

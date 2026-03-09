@@ -193,17 +193,11 @@ fn escape_fence_delimiters(s: &str) -> String {
 fn prevent_symlink_escape(base: &Path, target: &Path) -> Result<(), PromptError> {
     // Fail closed: if we cannot canonicalize the base, reject rather than skip.
     let canonical_base = base.canonicalize().map_err(|e| {
-        PromptError::SymlinkEscape(format!(
-            "cannot resolve base {}: {e}",
-            base.display()
-        ))
+        PromptError::SymlinkEscape(format!("cannot resolve base {}: {e}", base.display()))
     })?;
     let canonical_target = if target.exists() {
         target.canonicalize().map_err(|e| {
-            PromptError::SymlinkEscape(format!(
-                "cannot resolve target {}: {e}",
-                target.display()
-            ))
+            PromptError::SymlinkEscape(format!("cannot resolve target {}: {e}", target.display()))
         })?
     } else {
         // Target doesn't exist — walk up to the nearest existing ancestor.
@@ -294,8 +288,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_render_launch_with_template() {
-        let templates_dir =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
+        let templates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
         let engine = PromptEngine::new(&templates_dir).unwrap();
         let issue = make_issue(2);
         let dir = tempdir().unwrap();
@@ -320,8 +313,7 @@ mod tests {
             .await
             .unwrap();
 
-        let templates_dir =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
+        let templates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
         let engine = PromptEngine::new(&templates_dir).unwrap();
         let project = ProjectContext {
             path: dir.path().to_path_buf(),

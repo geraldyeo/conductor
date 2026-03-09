@@ -39,11 +39,7 @@ impl Runtime for TmuxRuntime {
         }
     }
 
-    async fn execute_step(
-        &self,
-        session_id: &str,
-        step: &RuntimeStep,
-    ) -> Result<(), RuntimeError> {
+    async fn execute_step(&self, session_id: &str, step: &RuntimeStep) -> Result<(), RuntimeError> {
         let name = Self::tmux_session_name(session_id);
         match step {
             RuntimeStep::Create {
@@ -92,9 +88,7 @@ impl Runtime for TmuxRuntime {
                     }
                     tokio::time::sleep(Duration::from_millis(200)).await;
                 }
-                Err(RuntimeError::CommandFailed(
-                    "WaitForReady timed out".into(),
-                ))
+                Err(RuntimeError::CommandFailed("WaitForReady timed out".into()))
             }
             RuntimeStep::SendMessage { content } => {
                 let out = self
@@ -115,11 +109,7 @@ impl Runtime for TmuxRuntime {
                 // Write to tmux buffer then paste
                 let out = self
                     .runner
-                    .run(
-                        &["tmux", "set-buffer", "--", content],
-                        None,
-                        None,
-                    )
+                    .run(&["tmux", "set-buffer", "--", content], None, None)
                     .await
                     .map_err(|e| RuntimeError::CommandFailed(e.to_string()))?;
                 if !out.success {
@@ -188,14 +178,8 @@ mod tests {
 
     #[test]
     fn test_tmux_session_name_sanitized() {
-        assert_eq!(
-            TmuxRuntime::tmux_session_name("proj-42-1"),
-            "ao-proj-42-1"
-        );
-        assert_eq!(
-            TmuxRuntime::tmux_session_name("proj/42:1"),
-            "ao-proj-42-1"
-        );
+        assert_eq!(TmuxRuntime::tmux_session_name("proj-42-1"), "ao-proj-42-1");
+        assert_eq!(TmuxRuntime::tmux_session_name("proj/42:1"), "ao-proj-42-1");
     }
 
     #[tokio::test]
