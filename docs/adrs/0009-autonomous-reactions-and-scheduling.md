@@ -1,7 +1,7 @@
 # ADR-0009: Autonomous Reactions and Scheduling
 
 ## Status
-Accepted
+Accepted (revised — round 1 findings addressed)
 
 ## Context
 
@@ -39,7 +39,7 @@ Six prior ADRs constrain the design:
 
 ### Reaction Queue Durability
 
-4. **In-memory queue** — Reactions are lost on orchestrator crash. However, reactions are re-derivable: on restart, the poll loop re-evaluates all non-terminal sessions, entry actions re-fire for sessions already in reaction-triggering states (e.g., `ci_failed`, `changes_requested`), and the action journal's idempotency check prevents duplicate execution. Crash recovery is identical to normal tick re-evaluation — no separate recovery codepath.
+4. **In-memory queue** — Reactions are lost on orchestrator crash. On restart, a `reconcile_pending_reactions()` startup step scans all non-terminal sessions in reaction-triggering states (e.g., `ci_failed`, `changes_requested`) and re-enqueues reactions for any session where no recent successful delivery entry exists in the action journal. This produces the same effect as re-derivation without re-running a full poll cycle. The action journal's idempotency check prevents duplicate execution on the subsequent tick.
 
 5. **Persisted queue** — Reactions survive crashes without re-derivation. Adds a queue file per session or global queue file, with atomic write semantics matching ADR-0005. Complexity gain is high; benefit is low given that re-derivation is already the crash-recovery strategy for the lifecycle engine itself.
 
@@ -67,7 +67,7 @@ Six prior ADRs constrain the design:
 
 **Reaction engine placement:** Option 2 — Separate `ReactionEngine` module. The lifecycle engine enqueues; the reaction engine dequeues.
 
-**Reaction queue durability:** Option 4 — In-memory queue. Re-derivation via re-poll is the existing crash recovery strategy; no second mechanism needed.
+**Reaction queue durability:** Option 4 — In-memory queue. On startup, `reconcile_pending_reactions()` scans non-terminal sessions and re-enqueues as needed; the action journal prevents duplicate execution.
 
 **Wait-for-ready:** Option 7 — Per-session pending queue, deliver on idle, terminal events bypass.
 
@@ -81,6 +81,8 @@ The design has five components:
 
 A `ReactionEngine` struct owns: the reaction configuration (from `Config`), the per-session pending queue (`HashMap<SessionId, VecDeque<PendingReaction>>`), and retry counters (`HashMap<(SessionId, ReactionType), RetryState>`).
 
+Project-level reactions use a sentinel key `"{project_id}::project"` in the `pending` HashMap for reactions that are not scoped to a single session (e.g., `all-complete`).
+
 ```rust
 pub struct ReactionEngine {
     config: Arc<Config>,
@@ -91,7 +93,7 @@ pub struct ReactionEngine {
 pub struct PendingReaction {
     pub reaction_type: ReactionType,
     pub payload: ReactionPayload,   // CI log excerpt, review comments, etc.
-    pub queued_at: Instant,
+    pub queued_at: u64,             // Unix milliseconds; wall-clock required for cross-restart consistency
     pub is_terminal: bool,          // bypass wait-for-ready if true
 }
 
@@ -119,6 +121,8 @@ pub struct RetryState {
 | `notify` | `Notifier::notify(priority, message)` — routes via `notificationRouting` from ADR-0003 config. |
 | `auto-merge` | `SCM::mergePR(pr_id)` — orchestrator-owned mutation (FR17 preview). Gated by `approved-and-green` reaction config. |
 
+**MVP `ReactionAction` enum:** `SendToAgent`, `Notify`, `AutoMerge`. These three variants are MVP-complete. `ReactionAction::Rework` will be added post-MVP with `require_confirmation: true` defaulting to true.
+
 **11 Reaction type defaults:**
 
 | Reaction | Trigger state | Default action | Max retries | Escalation |
@@ -133,21 +137,21 @@ pub struct RetryState {
 | `agent-exited` | `terminated` / runtime dead | `notify` urgent | — | — |
 | `all-complete` | All sessions in project terminal | `notify` summary | — | — |
 | `tracker-terminal` | `cleanup` global edge | `kill` + workspace destroy (entry action handles; reaction engine sends `notify`) | — | — |
-| `rework-requested` | Issue enters rework tracker state | Close PR, fresh branch from default, re-spawn | — | notify if re-spawn fails |
+| `rework-requested` | Issue enters rework tracker state | post-MVP stub | — | — |
 
 **Exponential backoff:** `delay = min(base_delay_ms * 2^attempts, config.maxRetryBackoffMs)`. Default `base_delay_ms` = 30s (one poll tick), default `maxRetryBackoffMs` = 300s (5 minutes). Global `maxRetriesPerIssue` (default 5/day) caps total spawn attempts across all reaction-triggered re-spawns for a given issue.
 
 ### 2. Idempotency via Action Journal
 
-Before executing any action (send-to-agent, notify, auto-merge), the reaction engine reads the session's action journal and checks for a matching entry within the deduplication window. Dedupe key: `(action_type, target_id)`. Deduplication window: 5 minutes for `send-to-agent` and `auto-merge`; 1 minute for `notify` (notifications are lower risk to repeat). If a matching entry exists within the window, the action is skipped with result `skipped` (no journal append).
+Before executing any action (send-to-agent, notify, auto-merge), the reaction engine reads the session's action journal and checks for a matching entry within the deduplication window. Dedupe key: `(reaction_type, action_type, target_id, trigger_version)` where `trigger_version` is a change-specific identifier (CI run ID, commit SHA, or review thread ID). Deduplication window: 5 minutes for `send-to-agent` and `auto-merge`; 1 minute for `notify` (notifications are lower risk to repeat). If a matching entry exists within the window, the action is skipped with result `skipped` (no journal append).
 
-After successful execution, append to journal:
+The action journal uses JSONL format (one JSON object per line) for typed parsing. After successful execution, append to journal:
 
+```json
+{"reaction_type":"ci-failed","action_type":"send-to-agent","target":"session-abc-123","trigger_version":"run_9876543210","timestamp_ms":1741651200000,"dedupe_key":"ci-failed|send-to-agent|session-abc-123|run_9876543210","result":"ok","attempt":1,"source":"reaction_engine"}
 ```
-{action_type}|{target}|{timestamp_ms}|{dedupe_key}|{result}|{attempt}|reaction_engine
-```
 
-Failed actions append with `result=failed` and `error_code`. The journal is the source of truth for retry escalation decisions — `RetryState` is rebuilt from the journal on restart (scanning the session's journal file for recent failed entries of each reaction type).
+Failed actions append with `"result":"failed"` and an `"error_code"` field. The journal is the source of truth for retry escalation decisions — `RetryState` is rebuilt from the journal on restart (scanning the session's journal file for recent failed entries of each reaction type).
 
 ### 3. Scheduler
 
@@ -157,8 +161,10 @@ The scheduler runs as the final sub-phase of the react+schedule phase, after rea
 
 - `SessionStore::list()` — all sessions, grouped by project + issue ID
 - Active session count per project (from above)
-- Active session count per tracker state (from session metadata)
+- Active session count per tracker state (from session metadata, using `last_known_tracker_state`)
 - `Tracker::get_issue()` results (cached from the gather phase where already fetched; fresh calls for issues with no running session)
+
+**Candidate set:** The scheduler fetches at most the top N issues from the tracker per tick (configurable `schedulerMaxCandidatesPerTick`, default 50) using tracker-native sorting (priority descending, age ascending) before fine-grained eligibility checks. This bounds API calls regardless of repo size.
 
 **Dispatch eligibility criteria (all must be true):**
 
@@ -166,12 +172,14 @@ The scheduler runs as the final sub-phase of the react+schedule phase, after rea
 2. No non-terminal session exists for this issue
 3. Global `maxConcurrentAgents` not reached
 4. Per-state `maxConcurrentAgentsByState` limit not reached for this issue's tracker state
-5. No non-terminal blocker issues (blockers are checked via `Tracker::get_issue()` on each blocker ID)
+5. No non-terminal direct blocker issues (blocker checking is limited to depth 1 — direct blockers only; tracker-native `is_blocked` flags are used when available)
 6. Issue not in the `maxRetriesPerIssue` daily cap (checked via action journal — count `spawn` entries in the last 24h for this issue)
 
 **Dispatch ordering:** All eligible issues are sorted by `(priority_rank ASC, created_at ASC)`. Priority rank is derived from the tracker's priority field — a configurable mapping from tracker priority labels to integer ranks (e.g., `"urgent" → 1, "high" → 2, "medium" → 3, "low" → 4`). Issues with the same priority rank are sorted oldest-first.
 
 **Spawn execution:** The scheduler calls `orchestrator.spawn_session(project_id, issue_id)` directly — the same internal method called by the IPC `Spawn` handler. No channel round-trip. Spawns are bounded per tick by `maxSpawnsPerTick` (default: 3) to prevent a burst of eligible issues from overwhelming the system on startup.
+
+**Blocker state:** `SessionMetadata` includes `last_known_tracker_state: Option<String>`, updated during the gather phase. The scheduler reads this field directly rather than making additional tracker API calls during the schedule phase.
 
 ### 4. Poll Loop Integration
 
@@ -190,7 +198,7 @@ tick N:
 
 Phases ⑤ and ⑥ are new. They run after transitions are applied so that newly transitioned sessions (e.g., a session just entering `ci_failed`) have their reactions enqueued before phase ⑤ evaluates delivery eligibility.
 
-**`all-complete` detection:** At the end of phase ④, if all sessions for a project are in terminal states and at least one transitioned to terminal this tick, the `all-complete` reaction is enqueued for the project.
+**`all-complete` detection:** At the end of phase ④, if ALL currently-tracked issues for the project are in terminal states and at least one transitioned to terminal this tick, the `all-complete` reaction is enqueued for the project using the sentinel key `"{project_id}::project"`. A 1-hour cooldown is enforced (checked via the action journal) to prevent re-firing as new issues are subsequently added to the project.
 
 ### 5. Configuration
 
@@ -209,10 +217,11 @@ pub enum ReactionAction {
     SendToAgent { template: Option<String> },  // None = default template per reaction type
     Notify { priority: NotificationPriority },
     AutoMerge,
+    // Rework variant is post-MVP (require_confirmation: true by default)
 }
 ```
 
-Per-project `reactions` overrides merge with global `reactions`. Project-level keys win. This allows a project to disable a reaction type (`enabled: false`) or lower its retry count without affecting other projects.
+Per-project `reactions` overrides merge with global `reactions`. Each field in `ReactionConfig` falls back independently to the corresponding global value if absent from the project config; absent global fields fall back to struct defaults. Project-level keys win for any field that is explicitly set. This allows a project to disable a reaction type (`enabled: false`) or lower its retry count without affecting other projects.
 
 Hot-reload (ADR-0003) applies: changes to reaction config and concurrency limits take effect on the next poll tick without restart. In-flight retry state is preserved across hot-reloads — `RetryState` is keyed by session ID and reaction type, not by config values.
 
@@ -222,17 +231,35 @@ Positive:
 
 - Separating the reaction engine from the lifecycle engine preserves ADR-0001's core invariant: the graph walk is pure, no I/O in evaluation. Entry actions remain fire-and-forget stubs; the reaction engine owns all delivery and retry complexity.
 - The wait-for-ready protocol prevents reaction delivery from disrupting agent mid-turn reasoning. The pending queue is a natural buffer; no inter-process signaling required.
-- Crash recovery is zero-cost: the reaction engine's in-memory queue is re-populated on restart via the same entry action re-firing that the lifecycle engine already uses for crash recovery (re-poll → re-evaluate → entry actions fire → reactions enqueue). The action journal's idempotency check prevents duplicate execution.
+- Crash recovery is handled by `reconcile_pending_reactions()` at startup: it scans all non-terminal sessions in reaction-triggering states and re-enqueues reactions for any session where no recent successful delivery entry exists in the action journal. The action journal's idempotency check (keyed on `(reaction_type, action_type, target_id, trigger_version)`) prevents duplicate execution. No separate recovery codepath beyond this startup scan is needed.
 - Integrating scheduling into the poll loop (phase ⑥) means scheduling always operates on freshly gathered and transitioned state. No stale data, no clock synchronization. The scheduler inherits the re-entrancy guard from the poll loop.
-- Priority-then-age dispatch with per-state limits directly matches the PRD spec. The implementation is a sort + filter on each tick — no persistent priority queue to maintain.
+- Priority-then-age dispatch with per-state limits directly matches the PRD spec. The implementation is a sort + filter on each tick — no persistent priority queue to maintain. Candidate set is bounded to `schedulerMaxCandidatesPerTick` (default 50) issues per tick using tracker-native sorting, so scheduling complexity is O(min(active tracker issues, schedulerMaxCandidatesPerTick)) regardless of repo size.
 - Per-project reaction overrides and global defaults give teams fine-grained control without requiring code changes. The `enabled: false` escape hatch lets teams opt out of specific automations.
 
 Negative:
 
-- Adding two new phases to the poll loop (react and schedule) increases tick duration. With 50+ sessions and slow tracker API calls in the gather phase, ticks already risk exceeding 30s (re-entrancy guard will skip). Reaction delivery (send-to-agent) involves additional tmux interaction. Mitigation: reaction delivery and scheduling are bounded — maximum one reaction delivered per session per tick, maximum `maxSpawnsPerTick` new sessions per tick. Both phases are O(active sessions) not O(all issues).
+- Adding two new phases to the poll loop (react and schedule) increases tick duration. With 50+ sessions and slow tracker API calls in the gather phase, ticks already risk exceeding 30s (re-entrancy guard will skip). Reaction delivery (send-to-agent) involves additional tmux interaction. Mitigation: reaction delivery and scheduling are bounded — maximum one reaction delivered per session per tick, maximum `maxSpawnsPerTick` new sessions per tick. Scheduling is O(min(active tracker issues, schedulerMaxCandidatesPerTick)) not O(all issues in the repo.
 - The `all-complete` detection requires checking all sessions across a project in phase ④ — O(sessions per project). This is already done in phase ③ (graph evaluation iterates all sessions), so no additional I/O is needed.
 - Retry state (`RetryState`) is rebuilt from the action journal on restart. Journal scans are O(journal entries per session). For long-running sessions with many reactions, this scan grows. Mitigation: entries older than `maxRetryBackoffMs` × 2 are irrelevant to current retry state and can be skipped during scan. A future compaction step could truncate old journal entries.
-- Per-state concurrency limits (`maxConcurrentAgentsByState`) require knowing the current tracker state of each active session. `SessionMetadata` does not currently store the issue's tracker state — the scheduler would need to fetch it via `Tracker::get_issue()` for all active sessions on each tick, or cache it in session metadata after each gather. The implementation should cache `last_known_tracker_state` in session metadata (updated during the gather phase) to avoid extra tracker API calls in the schedule phase.
-- The `rework-requested` reaction (close PR, fresh branch, re-spawn) is the most destructive automated action. It must check the action journal for a recent `rework` entry with the same issue ID before proceeding — double-idempotency protection — because a rework mid-flight (PR closing, branch creation) followed by an orchestrator crash would otherwise trigger a second rework on restart.
+- Per-state concurrency limits (`maxConcurrentAgentsByState`) require knowing the current tracker state of each active session. `SessionMetadata` includes `last_known_tracker_state: Option<String>`, updated during the gather phase. The scheduler reads this field directly to avoid extra tracker API calls in the schedule phase.
+- The `rework-requested` reaction (close PR, fresh branch, re-spawn) is a post-MVP stub. When implemented, it must check the action journal for a recent `rework` entry with the same issue ID before proceeding — double-idempotency protection — because a rework mid-flight followed by an orchestrator crash would otherwise trigger a second rework on restart. `ReactionAction::Rework` will be added post-MVP with `require_confirmation: true` defaulting to true.
 
 Reference `docs/plans/` for implementation pseudocode and module structure.
+
+---
+
+## Council Review Findings Addressed (Round 1)
+
+| Finding | Description | Resolution |
+|---------|-------------|------------|
+| HIGH-2 | Crash-recovery claim in Option 4 was incorrect ("entry actions re-fire") | Replaced with `reconcile_pending_reactions()` startup step that scans non-terminal sessions and re-enqueues where no recent successful journal entry exists |
+| CF-1 / HIGH-1 | `rework-requested` was included in MVP `ReactionAction` enum | Marked as post-MVP stub in reaction table; removed from MVP enum; noted `ReactionAction::Rework` post-MVP with `require_confirmation: true` |
+| CF-2 | Scheduler O-complexity was incorrectly stated as O(active sessions) | Corrected to O(min(active tracker issues, schedulerMaxCandidatesPerTick)); added `schedulerMaxCandidatesPerTick` config (default 50) with tracker-native sorting to bound API calls |
+| CF-3 | Dedupe key was `(action_type, target_id)` — insufficient | Changed to `(reaction_type, action_type, target_id, trigger_version)` where `trigger_version` is CI run ID, commit SHA, or review thread ID; updated journal format |
+| MEDIUM-3 | `last_known_tracker_state` was hedged as "should cache" | Made a definitive decision: `last_known_tracker_state: Option<String>` is a `SessionMetadata` field, updated in the gather phase; referenced consistently in Component 3 and Consequences |
+| MEDIUM-4 | Config override merge semantics were underspecified | Added field-level inheritance: each `ReactionConfig` field falls back independently to global value, then struct default |
+| LOW-1 | `all-complete` queue key was unspecified | Specified sentinel key `"{project_id}::project"` in `pending` HashMap for project-level reactions |
+| LOW-2 | `queued_at: Instant` not cross-restart safe | Changed to `queued_at: u64` (Unix milliseconds) with comment explaining wall-clock requirement |
+| Gemini: Blocker depth | Blocker checking depth was unspecified | Added: depth 1 (direct blockers only); tracker-native `is_blocked` flags used when available |
+| Gemini: `all-complete` cooldown | No cooldown on `all-complete` re-firing | Added 1-hour cooldown enforced via action journal to prevent re-firing as new issues are added |
+| Gemini: Action journal format | Journal was pipe-delimited text | Changed to JSONL format (one JSON object per line); updated journal entry example to JSON |
