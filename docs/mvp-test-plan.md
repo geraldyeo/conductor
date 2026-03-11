@@ -271,7 +271,7 @@ $AO spawn $TEST_ISSUE
 ```
 
 Expected:
-- Second spawn: error or skip with message "session already exists for this issue"
+- Second spawn: error with message "session already exists for this issue" and non-zero exit code
 
 **Cleanup:** `$AO session kill <session-id>` for spawned sessions, then `$AO stop`
 
@@ -425,7 +425,7 @@ Expected:
 - Exit code 0
 - Within 30s: `$AO status` shows session in `killed` state
 - tmux session no longer exists: `tmux list-sessions` — session removed
-- Worktree removed or session archived
+- Worktree removed and session archived
 
 ### TC-09-B: Kill already-terminal session
 

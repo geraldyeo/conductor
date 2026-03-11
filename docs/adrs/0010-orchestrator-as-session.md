@@ -139,7 +139,7 @@ Entry action for `errored` on an orchestrator session: instead of notifying a hu
 **Startup reconciliation (cold-start recovery for `errored` orchestrator):**
 On daemon startup, if an orchestrator session is found in `errored` state in SessionStore:
 
-1. Read `RESTART_TIMESTAMPS` and `LAST_RESTART_AT` from metadata.
+1. Read `RESTART_TIMESTAMPS` from metadata.
 2. Evaluate the circuit breaker using the sliding-window algorithm (count restarts within `orchestratorRestartWindowMs`).
 3. If the circuit breaker is not tripped, re-enqueue the restart after `orchestratorRestartDelayMs`.
 4. If tripped, notify the human and leave the session in `errored`.

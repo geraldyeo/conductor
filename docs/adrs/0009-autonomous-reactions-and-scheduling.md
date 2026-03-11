@@ -100,7 +100,7 @@ pub struct PendingReaction {
 
 pub struct RetryState {
     pub attempts: u32,
-    pub next_eligible_at: Instant,
+    pub next_eligible_at: u64,           // Unix milliseconds; wall-clock required for cross-restart backoff consistency
     pub escalated: bool,
     pub last_delivered_at: Option<u64>,  // Unix milliseconds; used for "once-per-state-entry" spam prevention
 }
