@@ -96,14 +96,14 @@ impl StateGraph {
         edge!(SessionStatus::Working, SessionStatus::Errored, 6, |c| {
             c.activity_state == ActivityState::Blocked
         });
-        edge!(SessionStatus::Working, SessionStatus::Killed, 7, |c| {
-            !c.runtime_alive
-        });
-        edge!(SessionStatus::Working, SessionStatus::Done, 8, |c| {
+        edge!(SessionStatus::Working, SessionStatus::Done, 7, |c| {
             c.activity_state == ActivityState::Exited && c.tracker_state == TrackerState::Terminal
         });
-        edge!(SessionStatus::Working, SessionStatus::Terminated, 9, |c| {
+        edge!(SessionStatus::Working, SessionStatus::Terminated, 8, |c| {
             c.activity_state == ActivityState::Exited
+        });
+        edge!(SessionStatus::Working, SessionStatus::Killed, 9, |c| {
+            !c.runtime_alive
         });
 
         edge!(SessionStatus::PrOpen, SessionStatus::CiFailed, 10, |c| {
@@ -350,6 +350,30 @@ mod tests {
         });
         let next = graph.evaluate(SessionStatus::Working, &ctx);
         assert_eq!(next, Some(SessionStatus::PrOpen));
+    }
+
+    #[test]
+    fn test_working_to_terminated_when_runtime_dead_tracker_active() {
+        let graph = StateGraph::build();
+        let mut ctx = make_ctx();
+        ctx.runtime_alive = false;
+        ctx.activity_state = ActivityState::Exited;
+        ctx.tracker_state = TrackerState::Active;
+        // Agent exited naturally; issue still open → Terminated, not Killed.
+        let next = graph.evaluate(SessionStatus::Working, &ctx);
+        assert_eq!(next, Some(SessionStatus::Terminated));
+    }
+
+    #[test]
+    fn test_working_to_done_when_runtime_dead_tracker_terminal() {
+        let graph = StateGraph::build();
+        let mut ctx = make_ctx();
+        ctx.runtime_alive = false;
+        ctx.activity_state = ActivityState::Exited;
+        ctx.tracker_state = TrackerState::Terminal;
+        // Agent exited naturally; issue is closed → Done.
+        let next = graph.evaluate(SessionStatus::Working, &ctx);
+        assert_eq!(next, Some(SessionStatus::Done));
     }
 
     #[test]

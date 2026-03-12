@@ -1,5 +1,6 @@
 use crate::error::CliError;
 use crate::output::table::format_sessions;
+use crate::resolve::resolve_project;
 use conductor_core::utils::DataPaths;
 use std::path::Path;
 
@@ -14,6 +15,11 @@ pub async fn run(
     } else {
         conductor_core::config::load_with_path()?
     };
+
+    // Validate -p flag up front so unknown projects exit 3, not silently return empty.
+    if project.is_some() {
+        resolve_project(&config, project)?;
+    }
 
     let mut all_sessions = Vec::new();
 
