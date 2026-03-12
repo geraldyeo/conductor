@@ -16,6 +16,10 @@ docs/
   adrs/reviews/    ADR review files
   adrs/archive/    Archived (superseded) ADRs
   plans/           Design documents and implementation plans
+  e2e-tests/
+    <suite>/       One folder per test suite (e.g. mvp/, reactions/)
+      plan.md      Test plan for the suite
+      YYYY-MM-DD-results.md   Dated result files (multiple runs allowed)
 ```
 
 ## Document Conventions
