@@ -62,8 +62,59 @@ fn parse_github_repo_from_url(url: &str) -> Option<String> {
 }
 
 fn prompt_interactively() -> Result<(String, String, String), CliError> {
-    // MVP: --auto only; interactive prompts are post-MVP
-    Err(CliError::General(
-        "Interactive mode not yet implemented. Use --auto flag.".to_string(),
-    ))
+    // Fall back to auto-detection; interactive prompts are post-MVP.
+    let id = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "myproject".to_string());
+    let repo = get_git_remote().unwrap_or_else(|| "owner/repo".to_string());
+    let path = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+    Ok((id, repo, path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_github_repo_from_ssh_url() {
+        assert_eq!(
+            parse_github_repo_from_url("git@github.com:owner/repo.git"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_github_repo_from_https_url() {
+        assert_eq!(
+            parse_github_repo_from_url("https://github.com/owner/repo.git"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_github_repo_from_https_url_without_git_suffix() {
+        assert_eq!(
+            parse_github_repo_from_url("https://github.com/owner/repo"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_github_repo_returns_none_for_unknown_format() {
+        assert_eq!(parse_github_repo_from_url("https://gitlab.com/owner/repo"), None);
+    }
+
+    #[test]
+    fn test_prompt_interactively_returns_ok() {
+        // Without --auto, init should fall back to auto-detection rather than error.
+        let result = prompt_interactively();
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        let (id, repo, path) = result.unwrap();
+        assert!(!id.is_empty());
+        assert!(!repo.is_empty());
+        assert!(!path.is_empty());
+    }
 }

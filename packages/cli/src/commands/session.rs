@@ -8,7 +8,11 @@ pub async fn kill(session_id: &str, json: bool) -> Result<(), CliError> {
     let req = OrchestratorRequest::Kill {
         session_id: session_id.to_string(),
     };
-    let _response = send_request(&req).await?;
+    let response = send_request(&req).await?;
+
+    if let OrchestratorResponse::Error { message, .. } = response {
+        return Err(CliError::General(message));
+    }
 
     if json {
         println!(

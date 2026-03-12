@@ -484,4 +484,48 @@ mod tests {
         ws.destroy("test-session-3", true).await.unwrap();
         assert!(!ws.exists("test-session-3").await);
     }
+
+    #[tokio::test]
+    async fn test_destroy_deletes_branch() {
+        let (_repo_dir, repo_root) = make_test_repo().await;
+        let (_data_dir, ws) = make_workspace(repo_root.clone());
+
+        ws.create("test-session-4", "feat/branch-to-delete")
+            .await
+            .unwrap();
+
+        // Verify branch exists before destroy
+        let runner = CommandRunner::default();
+        let before = runner
+            .run_in_dir(
+                &["git", "branch", "--list", "feat/branch-to-delete"],
+                &repo_root,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(
+            !before.stdout.trim().is_empty(),
+            "branch should exist before destroy"
+        );
+
+        ws.destroy("test-session-4", true).await.unwrap();
+
+        // Verify branch is gone after destroy
+        let after = runner
+            .run_in_dir(
+                &["git", "branch", "--list", "feat/branch-to-delete"],
+                &repo_root,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(
+            after.stdout.trim().is_empty(),
+            "branch should be deleted after destroy, got: {:?}",
+            after.stdout
+        );
+    }
 }

@@ -19,7 +19,26 @@ pub fn exit_code(e: &CliError) -> i32 {
     match e {
         CliError::Config(_) => 3,
         CliError::Ipc(crate::ipc::client::IpcError::NotRunning(_)) => 4,
+        CliError::Resolve(crate::resolve::ResolveError::NotFound(_)) => 3,
         CliError::General(_) | CliError::Io(_) | CliError::Ipc(_) | CliError::Resolve(_) => 1,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resolve::ResolveError;
+
+    #[test]
+    fn test_exit_code_resolve_not_found_is_3() {
+        let e = CliError::Resolve(ResolveError::NotFound("ghost".to_string()));
+        assert_eq!(exit_code(&e), 3);
+    }
+
+    #[test]
+    fn test_exit_code_resolve_ambiguous_is_1() {
+        let e = CliError::Resolve(ResolveError::Ambiguous("a, b".to_string()));
+        assert_eq!(exit_code(&e), 1);
     }
 }
 

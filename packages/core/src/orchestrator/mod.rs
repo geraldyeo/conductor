@@ -37,6 +37,8 @@ pub enum OrchestratorError {
     SessionExists(String),
     #[error("session not found: {0}")]
     SessionNotFound(String),
+    #[error("session already in terminal state: {0}")]
+    SessionAlreadyTerminal(String),
     #[error("workspace error: {0}")]
     WorkspaceError(String),
     #[error("runtime error: {0}")]
@@ -483,6 +485,11 @@ impl Orchestrator {
     async fn handle_kill(&self, session_id: &str) -> Result<(), OrchestratorError> {
         for p in self.plugins.values() {
             if let Ok(mut meta) = p.store.read_metadata(session_id).await {
+                if meta.status.is_terminal() {
+                    return Err(OrchestratorError::SessionAlreadyTerminal(
+                        session_id.to_string(),
+                    ));
+                }
                 meta.status = crate::types::SessionStatus::Killed;
                 meta.updated_at = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -605,6 +612,7 @@ fn error_response(e: OrchestratorError) -> OrchestratorResponse {
         OrchestratorError::IssueNotFound(_) => "issue_not_found",
         OrchestratorError::SessionExists(_) => "session_exists",
         OrchestratorError::SessionNotFound(_) => "session_not_found",
+        OrchestratorError::SessionAlreadyTerminal(_) => "session_already_terminal",
         OrchestratorError::ProjectNotFound(_) => "project_not_found",
         _ => "internal_error",
     };
@@ -927,6 +935,22 @@ mod tests {
             Ok(())
         }
 
+        async fn kill(&self, session_id: &str) -> Result<(), OrchestratorError> {
+            let store = SessionStore::new(self.data_paths.clone());
+            match store.read_metadata(session_id).await {
+                Ok(meta) if meta.status.is_terminal() => {
+                    Err(OrchestratorError::SessionAlreadyTerminal(session_id.to_string()))
+                }
+                Ok(mut meta) => {
+                    meta.status = crate::types::SessionStatus::Killed;
+                    store.write_metadata(&meta).await?;
+                    let _ = self.runtime.destroy(session_id).await;
+                    Ok(())
+                }
+                Err(_) => Err(OrchestratorError::SessionNotFound(session_id.to_string())),
+            }
+        }
+
         async fn unwind(&self, session_id: &str, worktree_created: bool) {
             if worktree_created {
                 let worktree_path = self.data_paths.worktree_path(session_id);
@@ -1047,6 +1071,78 @@ mod tests {
             !session_dir.exists(),
             "session dir should not exist after unwind"
         );
+    }
+
+    async fn make_test_session(
+        orch: &LegacyOrchestrator,
+        session_id: &str,
+        status: crate::types::SessionStatus,
+    ) {
+        let store = SessionStore::new(orch.data_paths.clone());
+        orch.data_paths.ensure_dirs().await.unwrap();
+        let meta = crate::session_store::SessionMetadata {
+            id: session_id.to_string(),
+            status,
+            termination_reason: None,
+            issue_url: "https://github.com/org/repo/issues/99".to_string(),
+            branch: "feat/test".to_string(),
+            worktree_path: std::path::PathBuf::from("/tmp/test"),
+            created_at: 0,
+            updated_at: 0,
+            attempts: 1,
+            total_cost_usd: 0.0,
+            input_tokens: 0,
+            output_tokens: 0,
+            project_id: "test".to_string(),
+            agent: "mock".to_string(),
+            runtime: "mock".to_string(),
+            workspace: "mock".to_string(),
+            tracker: "mock".to_string(),
+        };
+        store.create_session(&meta).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_kill_active_session_succeeds() {
+        let data_dir = tempdir().unwrap();
+        let orch = make_legacy_orchestrator(data_dir.path(), std::path::PathBuf::from("/tmp"));
+        let session_id = "test-kill-active";
+        make_test_session(&orch, session_id, crate::types::SessionStatus::Working).await;
+
+        let result = orch.kill(session_id).await;
+        assert!(result.is_ok(), "killing an active session should succeed");
+
+        let store = SessionStore::new(orch.data_paths.clone());
+        let meta = store.read_metadata(session_id).await.unwrap();
+        assert_eq!(meta.status, crate::types::SessionStatus::Killed);
+    }
+
+    #[tokio::test]
+    async fn test_kill_already_terminal_session_fails() {
+        let data_dir = tempdir().unwrap();
+        let orch = make_legacy_orchestrator(data_dir.path(), std::path::PathBuf::from("/tmp"));
+        let session_id = "test-kill-terminal";
+        make_test_session(&orch, session_id, crate::types::SessionStatus::Killed).await;
+
+        let result = orch.kill(session_id).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            OrchestratorError::SessionAlreadyTerminal(_) => {}
+            other => panic!("expected SessionAlreadyTerminal, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_kill_nonexistent_session_fails() {
+        let data_dir = tempdir().unwrap();
+        let orch = make_legacy_orchestrator(data_dir.path(), std::path::PathBuf::from("/tmp"));
+
+        let result = orch.kill("nonexistent-session").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            OrchestratorError::SessionNotFound(_) => {}
+            other => panic!("expected SessionNotFound, got: {other}"),
+        }
     }
 
     #[test]

@@ -14,7 +14,7 @@ impl TmuxRuntime {
     }
 
     fn tmux_session_name(session_id: &str) -> String {
-        // tmux session names: strip invalid chars, prefix with "ao-"
+        // tmux session names: strip invalid chars, prefix with "ao-" if not already present.
         let safe: String = session_id
             .chars()
             .map(|c| {
@@ -25,7 +25,11 @@ impl TmuxRuntime {
                 }
             })
             .collect();
-        format!("ao-{safe}")
+        if safe.starts_with("ao-") {
+            safe
+        } else {
+            format!("ao-{safe}")
+        }
     }
 }
 
@@ -180,6 +184,15 @@ mod tests {
     fn test_tmux_session_name_sanitized() {
         assert_eq!(TmuxRuntime::tmux_session_name("proj-42-1"), "ao-proj-42-1");
         assert_eq!(TmuxRuntime::tmux_session_name("proj/42:1"), "ao-proj-42-1");
+    }
+
+    #[test]
+    fn test_tmux_session_name_no_double_prefix_for_ao_ids() {
+        // Session IDs already start with "ao-"; tmux name must not double-prefix.
+        assert_eq!(
+            TmuxRuntime::tmux_session_name("ao-243b720719617b18"),
+            "ao-243b720719617b18"
+        );
     }
 
     #[tokio::test]
