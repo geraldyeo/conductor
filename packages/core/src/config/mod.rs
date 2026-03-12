@@ -141,6 +141,34 @@ mod tests {
     }
 
     #[test]
+    fn test_tracker_default_terminal_states_includes_closed() {
+        let path = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        // Config with no terminalStates field — default must include "closed"
+        let yaml = format!(
+            r#"projects:
+  myapp:
+    repo: owner/myapp
+    path: "{path}"
+    tracker:
+      plugin: github
+"#
+        );
+        let f = write_config(&yaml);
+        let config = load_from_path(f.path()).unwrap();
+        let terminal_states = &config.projects["myapp"].tracker.terminal_states;
+        assert!(
+            terminal_states
+                .iter()
+                .any(|s| s.eq_ignore_ascii_case("closed")),
+            "terminal_states should include 'closed' by default, got: {:?}",
+            terminal_states
+        );
+    }
+
+    #[test]
     fn test_resolve_defaults_fills_missing_project_fields() {
         let path = std::env::current_dir()
             .unwrap()

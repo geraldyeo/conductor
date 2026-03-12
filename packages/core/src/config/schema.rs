@@ -18,6 +18,10 @@ fn default_agent() -> String {
 fn default_workspace() -> String {
     "worktree".to_string()
 }
+fn default_terminal_states() -> Vec<String> {
+    vec!["closed".to_string()]
+}
+
 fn default_tracker() -> String {
     "github".to_string()
 }
@@ -195,7 +199,7 @@ pub struct TrackerConfig {
     pub team_id: Option<String>,
     #[serde(default)]
     pub active_states: Vec<String>,
-    #[serde(default)]
+    #[serde(default = "default_terminal_states")]
     pub terminal_states: Vec<String>,
 }
 
